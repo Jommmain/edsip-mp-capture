@@ -48,6 +48,13 @@
   <div class="small" id="sc-msg">Только прокрутка вкладки — данные грузит сам сайт. Работает и в фоновых вкладках.</div>
 </section>
 
+<details class="card" id="history"><summary><b>Последние сохранения</b></summary><ul id="hist"></ul></details>
+
+<section class="card" id="updates">
+  <div class="row"><b>Обновления</b><span class="small muted" id="upd-msg"></span></div>
+  <div class="btns"><button class="ghost" id="upd-check">Проверить обновления</button><button class="primary" id="upd-go" hidden></button></div>
+</section>
+
 <details class="card help" id="help"><summary><b>Чтобы фоновые вкладки не «засыпали»</b></summary>
   <ol>
     <li>Откройте <code>chrome://settings/performance</code> (кнопка ниже).</li>
@@ -58,8 +65,9 @@
   <p class="small">Расширение само не может менять эти настройки; оно лишь запрещает Chrome выгружать прокручиваемые вкладки (<code>autoDiscardable=false</code>).</p>
   <button class="ghost" id="open-perf">Открыть настройки производительности</button>
 </details>
-<div class="btns"><button class="ghost" id="reload2">⟳ Перезагрузить расширение</button></div>
+<div class="btns"><button class="ghost" id="open-opt">⚙ Настройки</button><button class="ghost" id="reload2">⟳ Перезагрузить расширение</button></div>
 <div id="msg"></div>
 <footer>Сохраняет только то, что страница уже загрузила. Ничего не отправляет в сеть. Файл → <code>data/marketplace/inbox/</code></footer>
+<script src="lib/saving.js"></script><script src="lib/handles.js"></script><script src="lib/updater.js"></script>
 <script src="popup.js"></script>
 </body></html>

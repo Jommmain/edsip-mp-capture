@@ -2,12 +2,10 @@ const $ = (id) => document.getElementById(id);
 const hasChrome = typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id;
 const send = (m) => new Promise((ok) => chrome.runtime.sendMessage(m, ok));
 
-function fileName(query, marketplace) {
-  const d = new Date();
-  const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const q = (query || "noquery").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "").slice(0, 60);
-  const prefix = marketplace === "ozon" ? "ozon" : "wb";
-  return `${prefix}_capture_${q}_${date}.json`;
+// Legacy helper kept for tests/compat: new naming lives in lib/saving.js.
+function fileName(query, marketplace, d = new Date(), run = 1) {
+  const S = typeof self !== "undefined" && self.EdsipSaving ? self.EdsipSaving : require("./lib/saving.js");
+  return S.fileName(marketplace, query, d, run);
 }
 
 // Readable, line-based file: bodies are embedded as JSON objects (not escaped strings), 1-space indent.
@@ -93,21 +91,94 @@ async function refresh() {
   else { pill.className = "pill on"; pill.textContent = `Захват ${MPN[tabMp]}`; }
 }
 
+const SV = typeof self !== "undefined" ? self.EdsipSaving : null;
+const HS = typeof self !== "undefined" ? self.EdsipHandles : null;
+async function saveSettings() { return { ...SV.DEFAULTS, ...((await chrome.storage.local.get("saveSettings")).saveSettings || {}) }; }
+async function pushHistory(items) {
+  const h = (await chrome.storage.local.get("saveHistory")).saveHistory || [];
+  await chrome.storage.local.set({ saveHistory: [...items, ...h].slice(0, 30) });
+}
+const dlSearch = (id) => new Promise((ok) => chrome.downloads.search({ id }, (r) => ok((r && r[0]) || null)));
+async function waitDownload(id) {
+  for (let i = 0; i < 40; i++) {
+    const d = await dlSearch(id);
+    if (d && d.state !== "in_progress") return d;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  return dlSearch(id);
+}
+async function saveViaFs(dirRoot, f, mp, st, now) {
+  let dir = dirRoot;
+  if (st.perMarketplace) dir = await dir.getDirectoryHandle(mp, { create: true });
+  const exists = async (n) => { try { await dir.getFileHandle(n); return true; } catch (e) { return false; } };
+  const name = await SV.freeName(mp, f.query || f.stats.query, now, exists);
+  const fh = await dir.getFileHandle(name, { create: true });
+  const w = await fh.createWritable(); await w.write(toPrettyJson(f)); await w.close();
+  return { name, path: `${dirRoot.name}/${st.perMarketplace ? mp + "/" : ""}${name}`, mode: "fs" };
+}
+async function saveViaDownloads(f, mp, st, now, hist) {
+  const sub = SV.subPath(st, mp);
+  const taken = new Set(hist.map((h) => h.rel));
+  const name = await SV.freeName(mp, f.query || f.stats.query, now, (n) => taken.has((sub ? sub + "/" : "") + n));
+  const rel = (sub ? sub + "/" : "") + name;
+  const url = URL.createObjectURL(new Blob([toPrettyJson(f)], { type: "application/json" }));
+  try {
+    const id = await new Promise((ok, bad) => chrome.downloads.download({ url, filename: rel, saveAs: false, conflictAction: "uniquify" },
+      (i) => (chrome.runtime.lastError ? bad(new Error(chrome.runtime.lastError.message)) : ok(i))));
+    const d = await waitDownload(id);
+    const full = (d && d.filename) || rel;
+    return { name: full.split(/[\\/]/).pop(), path: full, rel, mode: "downloads" };
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 60000); }
+}
 async function save(mp) {
   const data = await send({ type: "export", marketplace: mp });
   const files = (data && data.files || []).filter((f) => f.records.length);
   if (!files.length) { msg("Нечего сохранять"); return; }
-  const names = [];
-  for (const f of files) {
-    const url = URL.createObjectURL(new Blob([toPrettyJson(f)], { type: "application/json" }));
-    const fn = fileName(f.query || f.stats.query, mp);
-    await new Promise((ok) => chrome.downloads.download({ url, filename: fn, saveAs: false, conflictAction: "uniquify" }, () => {
-      if (chrome.runtime.lastError) names.push("ошибка: " + chrome.runtime.lastError.message); else names.push(fn);
-      setTimeout(() => URL.revokeObjectURL(url), 60000); ok();
-    }));
+  const st = await saveSettings();
+  const hist = (await chrome.storage.local.get("saveHistory")).saveHistory || [];
+  let dir = null, note = "";
+  if (st.mode === "fs") {
+    dir = await HS.get("saveDir").catch(() => null);
+    if (dir && (await HS.permission(dir, true).catch(() => "denied")) !== "granted") { dir = null; note = " (нет доступа к папке — сохранено в «Загрузки»)"; }
+    if (!dir && !note) note = " (папка не выбрана — сохранено в «Загрузки»)";
   }
-  msg(`Сохранено в «Загрузки»: ${names.join(", ")}`);
+  const done = [];
+  for (const f of files) {
+    const now = new Date();
+    f.saved_at = now.toISOString();
+    try {
+      const r = dir ? await saveViaFs(dir, f, mp, st, now) : await saveViaDownloads(f, mp, st, now, [...hist, ...done]);
+      done.push({ ...r, mp, query: f.query, records: f.records.length, ts: now.toISOString() });
+    } catch (e) { msg(`Ошибка сохранения: ${e.message}`); }
+  }
+  await pushHistory(done.slice().reverse());
+  if (done.length) msg(`Сохранено: ${done.map((d) => d.name).join(", ")}${note}`);
+  renderHistory();
 }
+async function renderHistory() {
+  const h = (await chrome.storage.local.get("saveHistory")).saveHistory || [];
+  $("hist").innerHTML = h.slice(0, 8).map((x) => `<li title="${esc(x.path)}"><b>${esc(x.name)}</b><span>${new Date(x.ts).toLocaleString("ru-RU")} · ${x.records} зап. · ${esc(x.mode === "fs" ? x.path : "Загрузки: " + x.path)}</span></li>`).join("")
+    || '<li class="muted">Пока ничего не сохранено</li>';
+}
+async function checkUpdates(manual) {
+  const U = self.EdsipUpdater, v = chrome.runtime.getManifest().version;
+  const { ghToken } = await chrome.storage.local.get("ghToken");
+  if (!ghToken) { $("upd-msg").innerHTML = `Нужен токен в <a href="#" id="go-opt">настройках</a> или в Терминале: <code>${U.TERMINAL_CMD}</code>`; bindOpt(); return; }
+  $("upd-msg").textContent = "Проверяю…";
+  try {
+    const r = await U.latestRelease(ghToken);
+    const newer = U.cmpVersions(r.version, v) > 0;
+    await chrome.storage.local.set({ updateInfo: { latest: r.version, url: r.url, checkedAt: Date.now(), newer } });
+    send({ type: "update_badge" });
+    showUpdate(newer, r.version, v);
+  } catch (e) { $("upd-msg").innerHTML = `Ошибка: ${esc(e.message)}. Терминал: <code>${U.TERMINAL_CMD}</code>`; }
+}
+function showUpdate(newer, latestV, v) {
+  $("upd-go").hidden = !newer;
+  if (newer) { $("upd-go").textContent = `Обновить до v${latestV}`; $("upd-msg").textContent = `Доступна v${latestV} (у вас v${v})`; }
+  else $("upd-msg").textContent = `Последняя версия: v${v}`;
+}
+function bindOpt() { const a = $("go-opt"); if (a) a.onclick = (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); }; }
 
 if (hasChrome && typeof document !== "undefined" && $("card-wb")) {
   $("ver").textContent = "v" + chrome.runtime.getManifest().version;
@@ -155,6 +226,11 @@ if (hasChrome && typeof document !== "undefined" && $("card-wb")) {
     chrome.runtime.reload();
   };
   $("reload").onclick = reload; $("reload2").onclick = reload;
+  $("open-opt").onclick = () => chrome.runtime.openOptionsPage();
+  $("upd-check").onclick = () => checkUpdates(true);
+  $("upd-go").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#update") });
+  chrome.storage.local.get("updateInfo").then(({ updateInfo: u }) => { if (u && u.latest) showUpdate(u.newer, u.latest, chrome.runtime.getManifest().version); });
+  renderHistory();
   $("open-perf").onclick = () => chrome.tabs.create({ url: "chrome://settings/performance" });
   $("sc-stopall").onclick = async () => { await send({ type: "scroll_stop_all" }); msg("Все прокрутки остановлены"); refresh(); };
   activeTab().then(refresh);

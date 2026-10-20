@@ -7,7 +7,7 @@ const area = (o) => ({ get: async (k) => { const r = {}; for (const x of [].conc
 const page = {}; // tabId -> {height, block, query}
 const chrome = { storage: { local: area(store), session: area(sess) },
   runtime: { onMessage: { addListener: (f) => { listener = f; } }, getManifest: () => ({ version: "0.4.0" }), lastError: null },
-  alarms: { create() {}, onAlarm: { addListener() {} } },
+  alarms: { create() {}, clear() {}, onAlarm: { addListener() {} } },
   windows: { create: async (o) => { wins.push(o); return { id: 900 + wins.length }; },
     get: async (id) => ({ id, tabs: id === 1 ? [{}, {}] : [{}] }), update: async (id, o) => { wupd.push([id, o]); return {}; } },
   tabs: { onRemoved: { addListener() {} }, get: async (id) => ({ id, windowId: id === 99 ? 2 : 1 }),
@@ -18,7 +18,7 @@ const chrome = { storage: { local: area(store), session: area(sess) },
       if (m.type === "scroll_ping") return cb({ query: pg.query, height: pg.height });
       if (m.type === "scroll_step") { pg.height += 500; return cb({ height: pg.height, atBottom: false, block: pg.block || null, query: pg.query }); }
       cb(null); } },
-  action: { setBadgeText() {}, setBadgeBackgroundColor() {} } };
+  action: { setBadgeText() {}, setBadgeBackgroundColor() {}, setTitle() {} } };
 const ctx = { chrome, URL, JSON, Date, Promise, console, Math, self: {}, setTimeout: (f) => setTimeout(f, 5), clearTimeout };
 ctx.importScripts = (f) => vm.runInContext(fs.readFileSync(path.join(__dirname, "..", f), "utf8"), ctx);
 vm.createContext(ctx);
@@ -26,7 +26,8 @@ vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "background.js"), "ut
 const call = (msg, tab) => new Promise((ok) => listener(msg, { tab: tab == null ? undefined : { id: tab } }, ok));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const ozUrl = (inner) => "https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=" + encodeURIComponent(inner);
-const ozRec = (q, skus, status = 200) => ({ url: ozUrl(`/search/?text=${q}`), kind: "ozon_page", status,
+let tsn = 0;
+const ozRec = (q, skus, status = 200) => ({ ts: `2026-10-20T10:00:0${tsn++}Z`, url: ozUrl(`/search/?text=${q}`), kind: "ozon_page", status,
   body: status === 200 ? JSON.stringify({ widgetStates: { "searchResultsV2-1": JSON.stringify({ items: skus.map((sku) => ({ sku })) }) } }) : null });
 
 (async () => {
@@ -38,6 +39,9 @@ const ozRec = (q, skus, status = 200) => ({ url: ozUrl(`/search/?text=${q}`), ki
   const ex = await call({ type: "export", marketplace: "ozon" });
   const byQ = Object.fromEntries(ex.files.map((f) => [f.query, f]));
   assert.deepStrictEqual(Object.keys(byQ).sort(), ["корм", "наполнитель"]);
+  assert.strictEqual(byQ["корм"].run_started_at, "2026-10-20T10:00:00Z");
+  assert.strictEqual(byQ["наполнитель"].run_ended_at, "2026-10-20T10:00:01Z");
+  assert.strictEqual(byQ["корм"].extension_version, "0.4.0");
   assert.strictEqual(byQ["корм"].records.length, 2); // product page inherits the tab's query
   assert.strictEqual(byQ["корм"].stats.products, 3); assert.strictEqual(byQ["наполнитель"].stats.products, 2);
   assert.strictEqual(JSON.stringify(byQ["корм"].tabs), "[11]");

@@ -20,8 +20,8 @@ const wb = P.statsFor(recs, "wb");
 assert.deepStrictEqual([wb.products, wb.ads, wb.pages, wb.query], [2, 1, 1, "a"]);
 assert.strictEqual(P.ozonItemId({ action: { link: "https://www.ozon.ru/product/abc-1234567/" } }), "1234567");
 assert.strictEqual(P.marketplaceOf({ url: ozUrl("/") }), "ozon");
-assert.ok(fileName("корм для кошек", "ozon").startsWith("ozon_capture_корм_для_кошек_"));
-assert.ok(fileName(null, "wb").startsWith("wb_capture_noquery_"));
+assert.strictEqual(fileName("корм для кошек", "ozon", new Date(2026, 9, 20, 9, 5, 7)), "ozon_корм_для_кошек_2026-10-20_09-05-07.json");
+assert.strictEqual(fileName(null, "wb", new Date(2026, 0, 2, 3, 4, 5), 3), "wb_noquery_2026-01-02_03-04-05_run3.json");
 const pj = JSON.parse(toPrettyJson({ schema: "edsip-mp-capture/1", marketplace: "ozon", stats: oz, records: recs.slice(0, 1) }));
 assert.strictEqual(pj.marketplace, "ozon"); assert.ok(pj.records[0].body.widgetStates);
 

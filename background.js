@@ -1,5 +1,6 @@
 // Service worker: records in chrome.storage.local; auto-scroll scheduler + anti-block safety.
-importScripts("parsers.js");
+importScripts("parsers.js", "lib/updater.js");
+const UPD = self.EdsipUpdater;
 const P = self.EdsipParsers;
 const KEY = "records";
 const MAX_RECORDS = 3000;
@@ -43,6 +44,7 @@ function badge(recs) {
     chrome.action.setBadgeText({ text: "!" }); chrome.action.setBadgeBackgroundColor({ color: "#dc2626" }); return;
   }
   const n = MPS.reduce((a, mp) => a + P.statsFor(recs, mp).products, 0);
+  if (!n && updateNewer) { chrome.action.setBadgeText({ text: "↑" }); chrome.action.setBadgeBackgroundColor({ color: "#16a34a" }); return; }
   chrome.action.setBadgeText({ text: n ? (n > 9999 ? "9k+" : String(n)) : "" });
   chrome.action.setBadgeBackgroundColor({ color: running().length ? "#d97706" : "#4f46e5" });
 }
@@ -144,10 +146,34 @@ function raiseBlock(mp, info) {
 }
 chrome.tabs.onRemoved.addListener((id) => { stopJob(id, "tab_gone"); delete tabQuery[id]; persist(); });
 chrome.alarms.create("edsip-keepalive", { periodInMinutes: 0.5 });
-chrome.alarms.onAlarm.addListener(async () => {
+chrome.alarms.onAlarm.addListener(async (a) => {
+  if (a.name !== "edsip-keepalive") return;
   await ready;
   for (const j of running()) if (!timers[j.tabId] || (j.nextAt || 0) < Date.now() - 2000) schedule(j, 0);
 });
+
+// ---- daily update check (token from options; nothing is sent except the GitHub API request) ----
+let updateNewer = false;
+chrome.storage.local.get("updateInfo").then((d) => { updateNewer = !!(d.updateInfo && d.updateInfo.newer); });
+async function scheduleUpdateCheck() {
+  const s = (await chrome.storage.local.get("saveSettings")).saveSettings || {};
+  if (s.autoCheck === false) chrome.alarms.clear("edsip-update-check");
+  else chrome.alarms.create("edsip-update-check", { delayInMinutes: 1, periodInMinutes: 24 * 60 });
+}
+async function checkUpdate() {
+  const { ghToken } = await chrome.storage.local.get("ghToken");
+  if (!ghToken) return;
+  try {
+    const rel = await UPD.latestRelease(ghToken);
+    const newer = UPD.cmpVersions(rel.version, chrome.runtime.getManifest().version) > 0;
+    updateNewer = newer;
+    await chrome.storage.local.set({ updateInfo: { latest: rel.version, url: rel.url, checkedAt: Date.now(), newer } });
+    chrome.action.setTitle({ title: newer ? `EDSIP MP Capture — доступна v${rel.version}` : "EDSIP MP Capture" });
+    serial(async () => badge(await load()));
+  } catch (e) { await chrome.storage.local.set({ updateInfo: { error: String(e.message || e), checkedAt: Date.now() } }); }
+}
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === "edsip-update-check") checkUpdate(); });
+scheduleUpdateCheck();
 
 // ---- messages ----
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -155,6 +181,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   (async () => {
     await ready;
     switch (msg.type) {
+      case "update_schedule": await scheduleUpdateCheck(); return reply({ ok: true });
+      case "update_badge": {
+        const d = (await chrome.storage.local.get("updateInfo")).updateInfo || {};
+        updateNewer = !!d.newer; badge(await load()); return reply({ ok: true });
+      }
       case "safety":
         return reply({ alerts, settings, cap: MAX_SCROLL_TABS, active: Object.fromEntries(MPS.map((mp) => [mp, running(mp).length])) });
       case "ack_alert": delete alerts[msg.marketplace]; persist(); badge(await load()); return reply({ ok: true });
@@ -219,8 +250,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const files = [...groups.entries()].map(([q, rs]) => {
           const st = P.statsFor(rs, mp);
           if (q) st.query = q;
+          const ts = rs.map((r) => r.ts).filter(Boolean).sort();
           return { schema: "edsip-mp-capture/1", marketplace: mp, query: q || null, extension_version: chrome.runtime.getManifest().version,
-            captured_at: new Date().toISOString(), tabs: [...new Set(rs.map((r) => r.tab).filter((t) => t != null))], stats: st, records: rs };
+            captured_at: new Date().toISOString(), run_started_at: ts[0] || null, run_ended_at: ts[ts.length - 1] || null, tabs: [...new Set(rs.map((r) => r.tab).filter((t) => t != null))], stats: st, records: rs };
         });
         reply({ files });
       } else if (msg.type === "clear") {
