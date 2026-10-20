@@ -20,7 +20,7 @@ async function init() {
   document.querySelector(`input[name=mode][value=${s.mode}]`).checked = true;
   $("subfolder").value = s.subfolder; $("perMarketplace").checked = !!s.perMarketplace; $("autoCheck").checked = s.autoCheck !== false;
   const { ghToken } = await chrome.storage.local.get("ghToken");
-  $("token").placeholder = ghToken ? "токен сохранён (••••)" : "github_pat_…";
+  $("token").placeholder = ghToken ? "токен сохранён (••••)" : "необязательно: github_pat_…";
   example(); showDirs();
   if (location.hash === "#update") { $("update").scrollIntoView(); check(); }
 }
@@ -49,7 +49,7 @@ $("save-token").onclick = async () => {
   if (!t) return;
   await chrome.storage.local.set({ ghToken: t }); $("token").value = ""; $("token").placeholder = "токен сохранён (••••)";
 };
-$("del-token").onclick = async () => { await chrome.storage.local.remove("ghToken"); $("token").placeholder = "github_pat_…"; };
+$("del-token").onclick = async () => { await chrome.storage.local.remove("ghToken"); $("token").placeholder = "необязательно: github_pat_…"; };
 $("pick-ext").onclick = async () => {
   try {
     const h = await showDirectoryPicker({ id: "edsip-ext", mode: "readwrite" });

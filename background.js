@@ -161,8 +161,7 @@ async function scheduleUpdateCheck() {
   else chrome.alarms.create("edsip-update-check", { delayInMinutes: 1, periodInMinutes: 24 * 60 });
 }
 async function checkUpdate() {
-  const { ghToken } = await chrome.storage.local.get("ghToken");
-  if (!ghToken) return;
+  const { ghToken } = await chrome.storage.local.get("ghToken"); // optional
   try {
     const rel = await UPD.latestRelease(ghToken);
     const newer = UPD.cmpVersions(rel.version, chrome.runtime.getManifest().version) > 0;

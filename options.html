@@ -11,7 +11,7 @@
     <p class="hint">Chrome разрешает расширениям сохранять только внутри «Загрузок». Пусто — прямо в «Загрузки».</p></div>
   <label class="opt"><input type="radio" name="mode" value="fs"> В выбранную папку на компьютере</label>
   <div class="sub"><button id="pick-save">Выбрать папку…</button> <span id="save-dir" class="muted">не выбрана</span>
-    <p class="hint">Например, <code>…/data/marketplace/inbox</code>. Если доступ к папке пропал, Chrome спросит разрешение при сохранении;
+    <p class="hint">Например, папку для загрузки в ваш пайплайн. Если доступ к папке пропал, Chrome спросит разрешение при сохранении;
       при отказе файл уйдёт в «Загрузки».</p></div>
   <label class="opt"><input type="checkbox" id="perMarketplace"> Отдельные подпапки <code>wb/</code> и <code>ozon/</code></label>
   <p class="hint">Имя файла: <code id="example"></code> — местное время; существующие файлы не перезаписываются (добавляется <code>_run2</code>, <code>_run3</code>…).</p>
@@ -20,9 +20,9 @@
 
 <section class="card" id="update">
   <h2>Обновления из GitHub</h2>
-  <p class="hint">Репозиторий <code>Jommmain/edsip-mp-capture</code> приватный: нужен fine-grained токен
-    (Repository access: только этот репо; Permissions → Contents: Read-only). Токен хранится только в этом браузере (<code>chrome.storage.local</code>).</p>
-  <div class="row"><input id="token" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+  <p class="hint">Репозиторий <code>Jommmain/edsip-mp-capture</code> публичный — токен <b>не нужен</b>. Необязательно: токен GitHub
+    только на чтение, если упираетесь в лимит API без авторизации (60 запросов/час). Хранится только в этом браузере (<code>chrome.storage.local</code>).</p>
+  <div class="row"><input id="token" type="password" placeholder="необязательно: github_pat_…" autocomplete="off" spellcheck="false">
     <button id="save-token">Сохранить токен</button><button id="del-token" class="ghost">Удалить</button></div>
   <label class="opt"><input type="checkbox" id="autoCheck"> Проверять раз в день (значок «↑» при новой версии)</label>
   <div class="row"><button id="pick-ext">Указать папку расширения…</button> <span id="ext-dir" class="muted">не указана</span></div>
@@ -30,7 +30,7 @@
     Если это git-клон — обновляйте через <code>git pull</code>.</p>
   <div class="row"><button class="primary" id="check">Проверить обновления</button><button class="primary" id="apply" hidden></button></div>
   <pre id="upd-log"></pre>
-  <p class="hint">Без токена или папки: в Терминале <code>bash ~/EDSIP/update-extension.sh</code>, затем ⟳ в окне расширения.
+  <p class="hint">Если папка не указана: в Терминале <code>bash ~/EDSIP/update-extension.sh</code>, затем ⟳ в окне расширения.
     Предыдущая версия сохраняется в подпапке <code>.prev/</code>.</p>
 </section>
 <script src="lib/saving.js"></script><script src="lib/handles.js"></script><script src="lib/unzip.js"></script><script src="lib/updater.js"></script>

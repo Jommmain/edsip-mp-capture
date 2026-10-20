@@ -163,7 +163,6 @@ async function renderHistory() {
 async function checkUpdates(manual) {
   const U = self.EdsipUpdater, v = chrome.runtime.getManifest().version;
   const { ghToken } = await chrome.storage.local.get("ghToken");
-  if (!ghToken) { $("upd-msg").innerHTML = `Нужен токен в <a href="#" id="go-opt">настройках</a> или в Терминале: <code>${U.TERMINAL_CMD}</code>`; bindOpt(); return; }
   $("upd-msg").textContent = "Проверяю…";
   try {
     const r = await U.latestRelease(ghToken);

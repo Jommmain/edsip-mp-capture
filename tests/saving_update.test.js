@@ -39,10 +39,14 @@ const txt = (d, n) => Buffer.from(d.files.get(n)).toString("utf8");
   assert.strictEqual(U.cmpVersions("0.5.0", "0.4.12"), 1); assert.strictEqual(U.cmpVersions("v0.5", "0.5.0"), 0); assert.strictEqual(U.cmpVersions("0.4.2", "0.5.0"), -1);
   let seen;
   const fakeFetch = async (url, o) => { seen = { url, o };
-    if (url.endsWith("/releases/latest")) return o.headers.Authorization ? { ok: true, status: 200, json: async () => ({ tag_name: "v0.6.0", html_url: "h",
-      assets: [{ name: "notes.txt" }, { name: "edsip-mp-capture-0.6.0.zip", url: "https://api.github.com/repos/x/releases/assets/1", size: 5 }] }) } : { ok: false, status: 404 };
+    if (url.endsWith("/releases/latest")) return !fakeFetch.limited ? { ok: true, status: 200, json: async () => ({ tag_name: "v0.6.0", html_url: "h",
+      assets: [{ name: "notes.txt" }, { name: "edsip-mp-capture-0.6.0.zip", url: "https://api.github.com/repos/x/releases/assets/1", size: 5 }] }) } : { ok: false, status: 403 };
     return { ok: true, status: 200, arrayBuffer: async () => new Uint8Array([1, 2]).buffer }; };
-  await assert.rejects(U.latestRelease(null, fakeFetch), /нужен токен/);
+  const anon = await U.latestRelease(null, fakeFetch); // public repo: no token needed
+  assert.strictEqual(anon.version, "0.6.0"); assert.strictEqual(seen.o.headers.Authorization, undefined);
+  fakeFetch.limited = true;
+  await assert.rejects(U.latestRelease(null, fakeFetch), /лимит GitHub API/);
+  fakeFetch.limited = false;
   const rel = await U.latestRelease("tok", fakeFetch);
   assert.strictEqual(rel.version, "0.6.0"); assert.strictEqual(rel.asset.name, "edsip-mp-capture-0.6.0.zip");
   assert.strictEqual(seen.o.headers.Authorization, "Bearer tok");

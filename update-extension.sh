@@ -12,8 +12,8 @@
 #   EDSIP_ASSET     шаблон имени zip в релизе         (по умолчанию edsip-mp-capture-*.zip)
 #   EDSIP_GIT_DIR   клон репозитория (режим git)       (по умолчанию ~/EDSIP/repo)
 #   EDSIP_GIT_SUBDIR подпапка расширения в репо        (по умолчанию . ; для монорепо: tools/edsip-mp-capture)
-#   GITHUB_TOKEN    токен с доступом к приватному репо (если нет gh) — fine-grained, Contents: Read-only
-# Приватный репо: либо `gh auth login` (предпочтительно), либо GITHUB_TOKEN. Без них — только публичный репо.
+#   GITHUB_TOKEN    необязательно: токен только на чтение — лишь от лимита GitHub API (60 запросов/час без авторизации)
+# Репозиторий публичный: работает без авторизации. Если curl не смог (лимит/сеть) и есть `gh auth login` — пробует gh.
 set -euo pipefail
 
 REPO="${EDSIP_REPO:-Jommmain/edsip-mp-capture}"
@@ -38,18 +38,21 @@ if [[ "$MODE" == "git" ]]; then
   git -C "$GIT_DIR_" pull --ff-only --quiet
   SRC="$GIT_DIR_/$GIT_SUBDIR"
 else
-  if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-    say "Скачиваю последний релиз $REPO через gh"
-    gh release download --repo "$REPO" --pattern "$ASSET" --dir "$TMP" --clobber
-  else
-    say "Скачиваю последний релиз $REPO через GitHub API${GITHUB_TOKEN:+ (с GITHUB_TOKEN)}"
-    AUTH=(); [[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
-    API="$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/latest")" \
-      || die "Нет доступа к релизам $REPO (приватный репо: gh auth login или GITHUB_TOKEN)"
-    URL="$(printf '%s' "$API" | /usr/bin/python3 -c 'import json,sys,fnmatch;p=sys.argv[1];a=[x["url"] for x in json.load(sys.stdin).get("assets",[]) if fnmatch.fnmatch(x["name"],p)];print(a[0] if a else "")' "$ASSET")"
+  say "Скачиваю последний релиз $REPO через GitHub API${GITHUB_TOKEN:+ (с GITHUB_TOKEN)}"
+  AUTH=(); [[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
+  URL=""
+  if API="$(curl -fsSL ${AUTH[@]+"${AUTH[@]}"} -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/latest")"; then
+    URL="$(printf '%s' "$API" | /usr/bin/python3 -c 'import json,sys,fnmatch;p=sys.argv[1];a=[x["browser_download_url"] for x in json.load(sys.stdin).get("assets",[]) if fnmatch.fnmatch(x["name"],p)];print(a[0] if a else "")' "$ASSET")"
     [[ -n "$URL" ]] || die "В последнем релизе нет файла $ASSET"
-    # assets API url + octet-stream works for private repos (browser_download_url does not with a token)
-    curl -fsSL "${AUTH[@]}" -H "Accept: application/octet-stream" -o "$TMP/ext.zip" "$URL"
+    curl -fsSL -o "$TMP/ext.zip" "$URL" || URL=""
+  fi
+  if [[ -z "$URL" ]]; then
+    if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+      say "GitHub API недоступен (лимит/сеть) — пробую через gh"
+      gh release download --repo "$REPO" --pattern "$ASSET" --dir "$TMP" --clobber
+    else
+      die "Не удалось получить релиз $REPO (лимит GitHub API или нет сети). Повторите позже или задайте GITHUB_TOKEN."
+    fi
   fi
   ZIP="$(ls "$TMP"/*.zip 2>/dev/null | head -1)"; [[ -n "$ZIP" ]] || die "zip не скачан"
   mkdir "$TMP/x" && /usr/bin/unzip -q "$ZIP" -d "$TMP/x"

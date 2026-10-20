@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EDSIP MP Capture",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Сохраняет JSON, который страница Wildberries/Ozon уже загрузила (поиск, карточки). Без своих запросов, без cookies/заголовков/токенов.",
   "permissions": [
     "storage",
