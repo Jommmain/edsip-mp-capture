@@ -1,0 +1,63 @@
+{
+  "manifest_version": 3,
+  "name": "EDSIP MP Capture",
+  "version": "0.4.2",
+  "description": "Сохраняет JSON, который страница Wildberries/Ozon уже загрузила (поиск, карточки). Без своих запросов, без cookies/заголовков/токенов.",
+  "permissions": [
+    "storage",
+    "unlimitedStorage",
+    "downloads",
+    "activeTab",
+    "tabs",
+    "alarms"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.wildberries.ru/*",
+        "https://www.wildberries.by/*",
+        "https://www.ozon.ru/*",
+        "https://ozon.ru/*",
+        "https://www.ozon.by/*",
+        "https://ozon.by/*"
+      ],
+      "js": [
+        "page_hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://www.wildberries.ru/*",
+        "https://www.wildberries.by/*",
+        "https://www.ozon.ru/*",
+        "https://ozon.ru/*",
+        "https://www.ozon.by/*",
+        "https://ozon.by/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "EDSIP MP Capture",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

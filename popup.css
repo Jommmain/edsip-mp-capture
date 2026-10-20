@@ -1,0 +1,43 @@
+:root{--bg:#f6f7fb;--card:#fff;--tx:#1f2330;--mut:#7a8093;--line:#e7e9f0;--pri:#4f46e5;--wb:#a3218e;--oz:#005bff;--ok:#16a34a;--warn:#d97706}
+*{box-sizing:border-box}
+body{font:13px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;width:360px;margin:0;padding:10px;background:var(--bg);color:var(--tx)}
+header{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.logo{width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#a3218e);color:#fff;font-weight:700;display:grid;place-items:center}
+.ttl{flex:1;display:flex;flex-direction:column}.ttl small{color:var(--mut);font-size:11px}
+.pill{font-size:11px;padding:3px 8px;border-radius:999px;background:#eceef4;color:var(--mut);white-space:nowrap}
+.pill.on{background:#dcfce7;color:var(--ok)}.pill.run{background:#fef3c7;color:var(--warn)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:8px;box-shadow:0 1px 2px rgba(20,20,50,.04)}
+.card.dim{opacity:.55}.card.active{border-color:#c7c9f7;box-shadow:0 0 0 2px #eef0ff}
+.row{display:flex;align-items:center;gap:8px}.row.small{margin-top:8px;font-size:12px}
+.badge{font-size:11px;font-weight:700;color:#fff;padding:2px 7px;border-radius:6px}.badge.wb{background:var(--wb)}.badge.ozon{background:var(--oz)}
+.q{flex:1;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.host{color:var(--mut);font-size:11px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 6px}
+.grid div{background:var(--bg);border-radius:8px;padding:6px 4px;text-align:center}
+.grid i{display:block;font-style:normal;font-size:17px;font-weight:700}.grid span{font-size:10.5px;color:var(--mut)}
+.meta{font-size:11px;color:var(--mut)}.meta b{color:var(--tx);font-weight:600}.muted{color:var(--mut)}
+.btns{display:flex;gap:6px;margin-top:8px}
+button{flex:1;border:0;border-radius:8px;padding:7px 10px;font:600 12.5px system-ui,sans-serif;cursor:pointer}
+button.primary{background:var(--pri);color:#fff}button.primary:hover{background:#4338ca}
+button.ghost{background:#fff;border:1px solid var(--line);color:var(--tx)}button.ghost:hover{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+button:disabled{opacity:.45;cursor:default}
+input[type=number]{width:72px;padding:3px 6px;border:1px solid var(--line);border-radius:6px}
+.sw{margin-left:auto;position:relative;width:36px;height:20px}.sw input{display:none}
+.sw span{position:absolute;inset:0;background:#d4d7e1;border-radius:999px;transition:.2s;cursor:pointer}
+.sw span:before{content:"";position:absolute;width:16px;height:16px;left:2px;top:2px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+span{background:var(--pri)}.sw input:checked+span:before{transform:translateX(16px)}
+.bar{height:6px;background:var(--bg);border-radius:999px;margin:8px 0 5px;overflow:hidden}#sc-bar{height:100%;width:0;background:var(--pri);transition:width .4s}
+.small{font-size:11.5px;color:var(--mut)}
+#msg{min-height:16px;font-size:12px;color:var(--pri);margin:2px 2px 4px}
+footer{font-size:10.5px;color:var(--mut)}code{font-size:10.5px}
+.alert{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:12px;padding:9px 10px;margin-bottom:8px;font-size:12px}
+.alert button{margin-top:6px;width:100%}.alert[hidden]{display:none}
+select{padding:2px 4px;border:1px solid var(--line);border-radius:6px}.warn{color:#b45309}
+.logo{background:none}
+#jobs{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.job{border:1px solid var(--line);border-radius:9px;padding:6px 8px;font-size:11.5px}
+.job .row{gap:6px}.job .q{font-size:12px}.job button{flex:0 0 auto;padding:3px 8px;font-size:11px}
+.job .bar{margin:5px 0 3px}.job .bar div{height:100%;background:var(--pri)}.job.done{opacity:.6}.job.blk{border-color:#fecaca;background:#fff7f7}
+label.row input{margin:0}
+.help summary{cursor:pointer;font-size:12px}.help ol{margin:6px 0 6px 18px;padding:0;font-size:11.5px}.help li{margin:2px 0}
+.hidwarn{margin-top:4px;color:#b45309;display:flex;gap:6px;align-items:center}.hidwarn button{padding:2px 7px;font-size:11px}
+.iconbtn{flex:0 0 auto;padding:3px 8px;font-size:14px}

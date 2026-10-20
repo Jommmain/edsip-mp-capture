@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>EDSIP MP Capture</title><link rel="icon" href="icons/icon32.png">
+<link rel="stylesheet" href="popup.css"></head>
+<body>
+<header>
+  <img class="logo" src="icons/icon48.png" alt="">
+  <div class="ttl"><b>EDSIP Capture</b><small id="ver"></small></div>
+  <button class="ghost iconbtn" id="reload" title="Перезагрузить расширение">⟳</button>
+  <span id="state" class="pill idle">Нет вкладки</span>
+</header>
+
+<div id="alert" class="alert" hidden><b>⚠ Признаки блокировки</b><div id="alert-txt"></div><button class="ghost" id="alert-ok">Понятно, снять</button></div>
+
+<section class="card mp" id="card-wb" data-mp="wb">
+  <div class="row"><span class="badge wb">WB</span><span class="q" data-k="query">—</span><span class="host" data-k="host"></span></div>
+  <div class="grid">
+    <div><i data-k="products">0</i><span>товаров</span></div>
+    <div><i data-k="pages">0</i><span>страниц</span></div>
+    <div><i data-k="ads">0</i><span>реклама</span></div>
+    <div><i data-k="cards">0</i><span>карточек</span></div>
+  </div>
+  <div class="meta">Регион <b data-k="dest">—</b> · валюта <b data-k="curr">—</b> · 498/307 <b data-k="blk">0/0</b> · записей <b data-k="total">0</b> · запросов <b data-k="nq">0</b></div>
+  <div class="btns"><button class="primary save">Сохранить</button><button class="ghost clear">Очистить</button></div>
+</section>
+
+<section class="card mp" id="card-ozon" data-mp="ozon">
+  <div class="row"><span class="badge ozon">Ozon</span><span class="q" data-k="query">—</span><span class="host" data-k="host"></span></div>
+  <div class="grid">
+    <div><i data-k="products">0</i><span>товаров</span></div>
+    <div><i data-k="pages">0</i><span>страниц</span></div>
+    <div><i data-k="ads">0</i><span>реклама*</span></div>
+    <div><i data-k="cards">0</i><span>карточек</span></div>
+  </div>
+  <div class="meta">403/429 <b data-k="blk">0/0</b> · записей <b data-k="total">0</b> · <span class="muted">*эвристика</span></div>
+  <div class="btns"><button class="primary save">Сохранить</button><button class="ghost clear">Очистить</button></div>
+</section>
+
+<section class="card" id="scroll">
+  <div class="row"><b>Автопрокрутка</b><span class="muted small" id="sc-cap"></span></div>
+  <div class="row small">Цель <input id="sc-target" type="number" min="0" step="50" value="300"> товаров
+    <select id="sc-speed"><option value="normal">Обычно</option><option value="fast">Быстро</option></select></div>
+  <label class="row small"><input type="checkbox" id="sc-alltabs"> во всех открытых вкладках этого маркетплейса (до 3)</label>
+  <label class="row small"><input type="checkbox" id="sc-detach"> каждую вкладку — в своё окно рядом (плиткой)</label>
+  <label class="row small"><input type="checkbox" id="sc-all" checked> при блокировке — пауза всех вкладок маркетплейса</label>
+  <div class="btns"><button class="primary" id="sc-start">▶ Запустить</button><button class="ghost" id="sc-stopall">■ Остановить все</button></div>
+  <div class="btns"><button class="ghost" id="win-cur">⧉ Открыть в отдельном окне</button><button class="ghost" id="win-tile">▦ Разложить окна</button></div>
+  <div id="jobs"></div>
+  <div class="small" id="sc-msg">Только прокрутка вкладки — данные грузит сам сайт. Работает и в фоновых вкладках.</div>
+</section>
+
+<details class="card help" id="help"><summary><b>Чтобы фоновые вкладки не «засыпали»</b></summary>
+  <ol>
+    <li>Откройте <code>chrome://settings/performance</code> (кнопка ниже).</li>
+    <li>В блоке «Экономия памяти» найдите «Всегда оставлять активными эти сайты» → «Добавить».</li>
+    <li>Добавьте по очереди: <code>wildberries.ru</code>, <code>wildberries.by</code>, <code>ozon.ru</code>, <code>ozon.by</code>.</li>
+    <li>Лучше всего — держать каждую прокручиваемую вкладку в своём окне (не свёрнутом): тогда страница считается видимой.</li>
+  </ol>
+  <p class="small">Расширение само не может менять эти настройки; оно лишь запрещает Chrome выгружать прокручиваемые вкладки (<code>autoDiscardable=false</code>).</p>
+  <button class="ghost" id="open-perf">Открыть настройки производительности</button>
+</details>
+<div class="btns"><button class="ghost" id="reload2">⟳ Перезагрузить расширение</button></div>
+<div id="msg"></div>
+<footer>Сохраняет только то, что страница уже загрузила. Ничего не отправляет в сеть. Файл → <code>data/marketplace/inbox/</code></footer>
+<script src="popup.js"></script>
+</body></html>
