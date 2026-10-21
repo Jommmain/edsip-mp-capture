@@ -67,7 +67,6 @@
       "promotions": [
        123
       ],
-      "logs": "<opaque>",
       "viewFlags": 64,
       "totalQuantity": 35,
       "sizes": [
@@ -88,13 +87,14 @@
          }
         ]
        }
-      ]
+      ],
+      "is_ad_logs": true
      }
     ]
    },
    "tab": 1,
    "query": "корм",
-   "body_sha256": "8b7653806a1593d3982e49580747f8846c2955ca85598f439c7e360603dabf10"
+   "body_sha256": "93412b5bd7886abc86987ad9620aa7b7e59c8ffb094ad676d51875ec3f80279b"
   },
   {
    "url": "https://feedback-view-02.wb.ru/feedbacks/v2/222478386",
@@ -110,6 +110,7 @@
     "with_text": null,
     "with_video": null,
     "distribution": null,
+    "reviews_total": 4,
     "reviews_loaded": 4,
     "reviews_2026": 2,
     "with_answer": 1,
@@ -121,7 +122,7 @@
    },
    "tab": 1,
    "query": "корм",
-   "body_sha256": "7ac5059c1d2327deef9b95a8a5a9bf5a2eb3882042fec509306982a56b4c7071"
+   "body_sha256": "566db91c0017db8e7e00824c7b14891861f67cf97d061435008c21dee0cd9e2f"
   }
  ],
  "format": "pretty-1"

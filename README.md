@@ -8,19 +8,19 @@
 `extension_version`, `saved_at`, `run_started_at`/`run_ended_at`, `query`, `zone` (категория/бренд), `tabs`, `format: pretty-1`,
 `context` — `site_host`, `region_hint {dest, curr}`, а также всегда `curr`, `dest`, `spp`, `snapshot_at` (время последнего ответа выдачи)
 и `pages`/`page`; `stats` (справочно); `records[]` — `url` (очищенный), `kind`, `status`, `ts`, `redirected`, `tab`, `query`/`zone`,
-`body` (объект), `body_sha256` (sha256 очищенного body). Пример: `tests/fixtures/sample_v2.json`.
+`body` (объект), `body_sha256` (sha256 канонического JSON очищенного body: ключи отсортированы, компактно, UTF-8 без \u-экранирования = Python `json.dumps(sort_keys=True, separators=(',',':'), ensure_ascii=False)`). Пример: `tests/fixtures/sample_v2.json`.
 
 - **WB** (wildberries.ru/.by): поиск v18, **страницы категорий** (`kind: category`) и **зоны брендов** (`kind: brand_zone`),
   u-card v4 detail/list (`card`), `card.json` (`card_info`), `rich_v1.json` (`card_rich`: наличие, число блоков, URL картинок),
   отзывы (`feedbacks`: только счётчики `feedback_count, valuation, with_photo, with_text, with_video, distribution`,
-  `reviews_2026`, `with_answer`, `reviews_by_year`, `reviews_loaded`), вопросы (`question_count`).
+  `reviews_total`, `reviews_loaded`, `reviews_2026`, `with_answer`, `reviews_by_year`), вопросы (`question_count`).
 - **Ozon** (ozon.ru, ozon.by): `/api/entrypoint-api.bx/page/json/v2`, `/api/composer-api.bx/page/json/v2` — поиск, категории,
   бренды, карточка. Формат Ozon **не проверен на живой HAR**.
 - **Цены собираются полностью и как есть** (без пересчёта — нормализует бэкенд): `sizes[].price {basic, product, total, wallet,
   logistics, return, cashback}`, `saleConditions`, продавец `supplier`, `supplierId`, `supplierRating`; в detail — `sizes[].stocks`
   и `promotions`; валюта/регион/СПП — в `context` и URL.
 - **Только разрешённые поля** (allowlist по типу ответа в `page_hook.js`): всё, чего нет в списке, отбрасывается
-  (в т. ч. неизвестные поля, данные пользователя, трекинг; `logs` рекламы → `"<opaque>"`). Поверх — удаление ключей-секретов и JWT.
+  (в т. ч. неизвестные поля, данные пользователя, трекинг, `meta`; шифрованный `logs` рекламы не хранится — вместо него `is_ad_logs: true/false`, `viewFlags` целиком; `colors` сохраняется). Поверх — удаление ключей-секретов и JWT.
   Тексты отзывов, имена авторов, фото отзывов и **файлы изображений не сохраняются** — только URL и метаданные.
 
 ## Сохранение файлов (⚙ Настройки)
@@ -136,6 +136,9 @@ bash ~/EDSIP/update-extension.sh
 - `downloads` — сохранение файла в «Загрузки» (способ по умолчанию); `alarms` — шаги автопрокрутки и ежедневная проверка обновлений;
 - host-доступ к wildberries/ozon — перехват ответов, адреса вкладок для «во всех вкладках» (вместо права `tabs`);
   к `api.github.com`/`github.com`/хостам файлов релизов — только для обновления. Права `tabs` и `activeTab` убраны.
+
+## Изменения 0.6.1
+Канонический `body_sha256` (как Python `sort_keys`), `reviews_total`, `is_ad_logs` вместо `logs`, без `meta`, Ozon `url=` — путь без utm/трекинга.
 
 ## Изменения 0.6.0
 Формат `edsip-mp-capture/2` (capture_id, context с curr/dest/spp/snapshot_at, body_sha256), категории и зоны брендов,

@@ -110,7 +110,7 @@
   // Prices are collected RAW (contract §7a): no recalculation here; the backend normalizes.
   const PRICE = { basic: 1, product: 1, total: 1, wallet: 1, logistics: 1, return: 1, cashback: 1 };
   const WB_PRODUCT = { id: 1, root: 1, kindId: 1, brand: 1, brandId: 1, siteBrandId: 1, subjectId: 1, subjectParentId: 1, name: 1,
-    entity: 1, supplier: 1, supplierId: 1, supplierRating: 1, supplierFlags: 1, promotions: 1, logs: 1, rating: 1, reviewRating: 1, nmReviewRating: 1, feedbacks: 1,
+    entity: 1, supplier: 1, supplierId: 1, supplierRating: 1, supplierFlags: 1, promotions: 1, rating: 1, reviewRating: 1, nmReviewRating: 1, feedbacks: 1,
     nmFeedbacks: 1, pics: 1, volume: 1, viewFlags: 1, panelPromoId: 1, promoTextCard: 1, promoTextCat: 1, totalQuantity: 1,
     time1: 1, time2: 1, wh: 1, dtype: 1, dist: 1, isNew: 1, dupId: 1, matchId: 1, colors: [{ id: 1, name: 1 }],
     priceU: 1, salePriceU: 1, sale: 1,
@@ -140,14 +140,14 @@
       return { feedback_count: data.feedbackCount ?? null, valuation: data.valuation ?? null,
         with_photo: data.feedbackCountWithPhoto ?? null, with_text: data.feedbackCountWithText ?? null,
         with_video: data.feedbackCountWithVideo ?? null, distribution: data.valuationDistribution ?? null,
-        ...reviewCounters(data.feedbacks) };
+        reviews_total: data.feedbackCount ?? null, ...reviewCounters(data.feedbacks) };
     }
     if (kind === "questions") return { question_count: data.count ?? null };
     if (kind === "search" || kind === "category" || kind === "brand_zone" || kind === "card") {
-      // `logs` = ad tracking blob: keep only the fact it exists (ad marker) as "<opaque>".
+      // `logs` = encrypted ad-tracking blob: never stored; only is_ad_logs (bool). viewFlags is kept whole.
       const out = pick(data, WB_LISTING);
-      const mark = (list) => { if (Array.isArray(list)) for (const p of list) if (p && p.logs) p.logs = "<opaque>"; };
-      mark(out.products); if (out.data) mark(out.data.products);
+      const mark = (src, dst) => { if (Array.isArray(src) && Array.isArray(dst)) src.forEach((p, i) => { if (dst[i]) dst[i].is_ad_logs = !!(p && p.logs); }); };
+      mark(data.products, out.products); if (data.data && out.data) mark(data.data.products, out.data.products);
       return out;
     }
     if (kind === "card_info") return pick(data, WB_CARD_INFO);

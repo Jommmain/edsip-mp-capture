@@ -22,7 +22,8 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
   assert.deepStrictEqual(p.sizes[0].price, { basic: 2610, product: 2134, wallet: 0, logistics: 0, return: 0, cashback: 0 });
   assert.strictEqual(p.sizes[0].saleConditions, 402653184);
   assert.deepStrictEqual(p.sizes[0].stocks, [{ wh: 1, qty: 3 }]);
-  assert.deepStrictEqual([p.supplier, p.supplierId, p.supplierRating, p.logs], ["Ezoo", 1304374, 4.9, "<opaque>"]);
+  assert.deepStrictEqual([p.supplier, p.supplierId, p.supplierRating, p.is_ad_logs, p.viewFlags], ["Ezoo", 1304374, 4.9, true, 64]);
+  assert.ok(!("logs" in p) && !JSON.stringify(s).includes("AD-TRACKING"));
   assert.deepStrictEqual(p.promotions, [123]);
   assert.ok(!("sellerPhone" in p) && !("ownerFio" in p) && !("payload" in p.sizes[0]) && !("secretBlob" in s) && !("tracking" in s.metadata));
   assert.ok(!h.records[0].url.includes("uid=") && !h.records[0].url.includes("wbaas"));
@@ -48,7 +49,7 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
       { createdDate: "2026-09-10T10:00:00Z", text: "ok", answer: null }, { createdDate: "2025-12-31T23:00:00Z", text: "x", answer: { text: "" } },
       { createdDate: "2024-01-01T00:00:00Z", pros: "y" }] });
   const fb = JSON.parse(h.records[3].body);
-  assert.deepStrictEqual([fb.feedback_count, fb.reviews_loaded, fb.reviews_2026, fb.with_answer], [4, 4, 2, 1]);
+  assert.deepStrictEqual([fb.feedback_count, fb.reviews_total, fb.reviews_loaded, fb.reviews_2026, fb.with_answer], [4, 4, 4, 2, 1]);
   assert.deepStrictEqual(fb.reviews_by_year, { 2026: 2, 2025: 1, 2024: 1 });
   assert.ok(!JSON.stringify(fb).includes("Отлично") && !JSON.stringify(fb).includes("Иван"));
 
@@ -57,6 +58,12 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
     [{ type: "img", src: "https://basket-12.wbbasket.ru/vol1899/part189961/189961044/rich/1.webp", text: "длинный текст" }, { type: "text", text: "t" }]);
   assert.deepStrictEqual(JSON.parse(h.records[4].body), { rich_present: true, blocks: 2,
     images: ["https://basket-12.wbbasket.ru/vol1899/part189961/189961044/rich/1.webp"] });
+
+  // --- colors kept, meta dropped ---
+  await h.get(WB + "&page=4", { products: [{ id: 7, colors: [{ id: 0, name: "белый" }], meta: { tracking: 1 }, logs: "" }] });
+  const cp = JSON.parse(h.records[h.records.length - 1].body).products[0];
+  assert.deepStrictEqual([cp.colors, "meta" in cp, cp.is_ad_logs], [[{ id: 0, name: "белый" }], false, false]);
+  h.records.pop();
 
   // --- category page + brand zone ---
   await h.get("https://www.wildberries.by/__internal/u-catalog/catalog/pet_food/v4/catalog?appType=1&cat=9002&curr=byn&dest=-59208&spp=30&page=2&sort=popular",
@@ -67,6 +74,14 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
   assert.strictEqual(P.zoneOf(h.records[5]), "category:9002"); assert.strictEqual(P.zoneOf(h.records[6]), "brand:41830");
   assert.strictEqual(JSON.parse(h.records[5].body).data.products[0].sizes[0].price.product, 90);
   assert.strictEqual(P.zoneOf({ url: "https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=%2Fbrand%2Froyal-canin-1234%2F", marketplace: "ozon" }), "brand:royal-canin-1234");
+
+  // --- Ozon inner url: path + allowlisted params only (no utm/tracking); WB cat/subject/supplier kept ---
+  const ho = loadHook("https://www.ozon.ru");
+  await ho.get("https://www.ozon.ru/api/entrypoint-api.bx/page/json/v2?url=" + encodeURIComponent("/category/korm-12345/?utm_source=x&utm_campaign=y&__rr=1&tf_state=z&page=2#h") + "&utm_medium=m", { widgetStates: {} });
+  assert.strictEqual(new URL(ho.records[0].url).searchParams.get("url"), "/category/korm-12345/?page=2");
+  assert.ok(!ho.records[0].url.includes("utm")); ho.close();
+  const cu = new URL(h.records[5].url).searchParams;
+  assert.strictEqual(cu.get("cat"), "9002");
 
   // --- private channel: forged init / window messages cannot inject or hijack ---
   const before = h.records.length;
@@ -111,6 +126,19 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
   assert.strictEqual(env.records[0].body.products[0].sizes[0].price.product, 2134); // raw, not recalculated
   assert.ok(!("prices" in env.records[0]) && !("page_host" in env.records[0]));
   assert.match((await ENV.buildEnvelope({ marketplace: "wb", records: [], version: "x" })).capture_id, /^[0-9a-f-]{36}$/);
+  // body_sha256 == sha256(Python json.dumps(sort_keys=True, separators=(",",":"), ensure_ascii=False).encode("utf-8"))
+  const tricky = { b: [1, 2.5, -0, 1e21, "ё\u2028\"\\/"], a: { z: null, "Я": true, "a b": "€" }, "": 0, emoji: "😀" };
+  const { execFileSync } = require("child_process");
+  let py = null;
+  try {
+    py = execFileSync("python3", ["-c", "import sys,json,hashlib;d=json.load(sys.stdin);print('\\n'.join(hashlib.sha256(json.dumps(x,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode('utf-8')).hexdigest() for x in d))"],
+      { input: JSON.stringify([tricky, env.records[0].body, env.records[1].body]) }).toString().trim().split("\n");
+  } catch (e) { console.log("  (python3 not available — canonical hash cross-check skipped)"); }
+  if (py) {
+    const tb = JSON.parse(JSON.stringify(tricky));
+    assert.strictEqual(await ENV.sha256Hex(ENV.canonicalJson(tb)), py[0], "canonical JSON differs from Python on tricky object");
+    assert.deepStrictEqual([env.records[0].body_sha256, env.records[1].body_sha256], [py[1], py[2]]);
+  }
   const { toPrettyJson } = require("../popup.js");
   const sample = toPrettyJson(env);
   const fx = path.join(__dirname, "fixtures", "sample_v2.json");

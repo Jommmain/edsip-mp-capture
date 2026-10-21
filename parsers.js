@@ -1,6 +1,6 @@
 // Pure stats parsers (shared by background.js and node tests). No chrome.* here.
 (function (root) {
-  function isWbAd(p) { return !!p.logs || ((p.viewFlags || 0) & 64) !== 0 || (p.log && typeof p.log === "object"); }
+  function isWbAd(p) { return !!p.logs || p.is_ad_logs === true || ((p.viewFlags || 0) & 64) !== 0 || (p.log && typeof p.log === "object"); }
 
   function emptyStats(marketplace) {
     return { total: 0, pages: 0, ads: 0, products: 0, query: null, dest: null, curr: null,
