@@ -1,5 +1,6 @@
 // Service worker: records in chrome.storage.local; auto-scroll scheduler + anti-block safety.
-importScripts("parsers.js", "lib/updater.js");
+importScripts("parsers.js", "lib/updater.js", "lib/envelope.js");
+const ENV = self.EdsipEnvelope;
 const UPD = self.EdsipUpdater;
 const P = self.EdsipParsers;
 const KEY = "records";
@@ -22,6 +23,7 @@ let jobs = {};      // tabId -> {tabId, mp, query, target, speed, maxStall, step
 let alerts = {};    // mp -> {reason, status, url, tabId, ts}
 let settings = { pauseAll: true };
 const tabQuery = {}; // tabId -> last search query seen on that tab
+const tabZone = {};  // tabId -> last category/brand zone seen on that tab
 const timers = {};
 const ready = (async () => {
   const d = await chrome.storage.session.get(["jobs", "alerts", "tabQuery"]);
@@ -223,7 +225,11 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         r.tab = tabId;
         const q = P.queryOf(r);
         if (q && tabId != null) { tabQuery[tabId] = q; persist(); }
-        r.query = q || (tabId != null ? tabQuery[tabId] || null : null);
+        const z = P.zoneOf(r);
+        if (z) { r.zone = z; if (tabId != null) { tabQuery[tabId] = null; tabZone[tabId] = z; persist(); } }
+        else if (q && tabId != null) tabZone[tabId] = null;
+        r.query = q || (z ? null : (tabId != null ? tabQuery[tabId] || null : null));
+        if (!r.query && !r.zone && tabId != null && tabZone[tabId]) r.zone = tabZone[tabId];
         if (BLOCK_STATUS.has(r.status)) raiseBlock(r.marketplace, { reason: `HTTP ${r.status}`, status: r.status, url: r.url, tabId });
         const s = sig(r); // drop exact duplicates (SPA re-renders often refetch the same page)
         if (recs.slice(-200).some((x) => sig(x) === s)) return reply({ ok: true, dup: true });
@@ -245,14 +251,12 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
         const mp = MPS.includes(msg.marketplace) ? msg.marketplace : "wb";
         const own = recs.filter((r) => P.marketplaceOf(r) === mp);
         const groups = new Map();
-        for (const r of own) { const k = r.query || ""; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
-        const files = [...groups.entries()].map(([q, rs]) => {
-          const st = P.statsFor(rs, mp);
-          if (q) st.query = q;
-          const ts = rs.map((r) => r.ts).filter(Boolean).sort();
-          return { schema: "edsip-mp-capture/1", marketplace: mp, query: q || null, extension_version: chrome.runtime.getManifest().version,
-            captured_at: new Date().toISOString(), run_started_at: ts[0] || null, run_ended_at: ts[ts.length - 1] || null, tabs: [...new Set(rs.map((r) => r.tab).filter((t) => t != null))], stats: st, records: rs };
-        });
+        for (const r of own) { const k = r.query ? "q:" + r.query : (r.zone ? "z:" + r.zone : ""); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+        const files = [];
+        for (const [k, rs] of groups) {
+          files.push(await ENV.buildEnvelope({ marketplace: mp, query: k.startsWith("q:") ? k.slice(2) : null,
+            zone: k.startsWith("z:") ? k.slice(2) : null, records: rs, version: chrome.runtime.getManifest().version }));
+        }
         reply({ files });
       } else if (msg.type === "clear") {
         const left = msg.marketplace ? recs.filter((r) => P.marketplaceOf(r) !== msg.marketplace) : [];

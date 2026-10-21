@@ -15,7 +15,8 @@
       if (r.status === 498) out.blocked++;
       if (r.status === 307 || r.redirected) out.redirects++;
       if (r.kind === "card_info" && r.status === 200) out.cards++;
-      if (r.kind !== "search") continue;
+      if (r.kind === "category" || r.kind === "brand_zone") out.zones = (out.zones || 0) + (r.status === 200 ? 1 : 0);
+      if (r.kind !== "search" && r.kind !== "category" && r.kind !== "brand_zone") continue;
       const u = new URL(r.url);
       if (u.searchParams.get("resultset") === "filters") continue;
       out.query = u.searchParams.get("query"); out.dest = u.searchParams.get("dest");
@@ -140,12 +141,26 @@
       return r.kind === "search" ? (u.searchParams.get("query") || u.searchParams.get("search")) : null;
     } catch (e) { return null; }
   }
+  // Listing zone for category pages / brand zones (no text query there): "category:<cat|path>" / "brand:<id|path>".
+  function zoneOf(r) {
+    try {
+      const u = new URL(r.url);
+      if (marketplaceOf(r) === "ozon") {
+        const i = ozonInner(r.url); if (!i) return null;
+        const m = i.pathname.match(/^\/(category|brand|seller|highlight)\/([^/]+)/);
+        return m && !i.searchParams.get("text") ? `${m[1] === "category" ? "category" : "brand"}:${m[2]}` : null;
+      }
+      if (r.kind === "category") return `category:${u.searchParams.get("cat") || u.searchParams.get("subject") || u.pathname.split("/").slice(-3, -2)[0]}`;
+      if (r.kind === "brand_zone") return `brand:${u.searchParams.get("brand") || "?"}`;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
   function statsFor(records, mp) {
     const recs = records.filter((r) => marketplaceOf(r) === mp);
     return mp === "ozon" ? ozonStats(recs) : wbStats(recs);
   }
 
-  const api = { queryOf, isWbAd, wbStats, ozonStats, statsFor, marketplaceOf, isOzonAd, ozonItemId, ozonItemsFromBody, emptyStats };
+  const api = { zoneOf, queryOf, isWbAd, wbStats, ozonStats, statsFor, marketplaceOf, isOzonAd, ozonItemId, ozonItemsFromBody, emptyStats };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.EdsipParsers = api;
 })(typeof self !== "undefined" ? self : this);

@@ -42,19 +42,36 @@ else
   AUTH=(); [[ -n "${GITHUB_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN")
   URL=""
   if API="$(curl -fsSL ${AUTH[@]+"${AUTH[@]}"} -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/releases/latest")"; then
-    URL="$(printf '%s' "$API" | /usr/bin/python3 -c 'import json,sys,fnmatch;p=sys.argv[1];a=[x["browser_download_url"] for x in json.load(sys.stdin).get("assets",[]) if fnmatch.fnmatch(x["name"],p)];print(a[0] if a else "")' "$ASSET")"
+    asset_url() { printf '%s' "$API" | /usr/bin/python3 -c 'import json,sys,fnmatch;p=sys.argv[1];a=[(x["name"],x["browser_download_url"]) for x in json.load(sys.stdin).get("assets",[]) if fnmatch.fnmatch(x["name"],p)];print(a[0][1] if a else "")' "$1"; }
+    URL="$(asset_url "$ASSET")"
     [[ -n "$URL" ]] || die "В последнем релизе нет файла $ASSET"
-    curl -fsSL -o "$TMP/ext.zip" "$URL" || URL=""
+    curl -fsSL -o "$TMP/$(basename "$URL")" "$URL" || URL=""
+    for f in SHA256SUMS SHA256SUMS.sig; do u="$(asset_url "$f")"; [[ -n "$u" ]] && curl -fsSL -o "$TMP/$f" "$u" || true; done
   fi
   if [[ -z "$URL" ]]; then
     if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
       say "GitHub API недоступен (лимит/сеть) — пробую через gh"
-      gh release download --repo "$REPO" --pattern "$ASSET" --dir "$TMP" --clobber
+      gh release download --repo "$REPO" --pattern "$ASSET" --pattern SHA256SUMS --pattern SHA256SUMS.sig --dir "$TMP" --clobber
     else
       die "Не удалось получить релиз $REPO (лимит GitHub API или нет сети). Повторите позже или задайте GITHUB_TOKEN."
     fi
   fi
   ZIP="$(ls "$TMP"/*.zip 2>/dev/null | head -1)"; [[ -n "$ZIP" ]] || die "zip не скачан"
+  # --- integrity: sha256 against SHA256SUMS (mandatory) + ed25519 signature of SHA256SUMS (if openssl supports it) ---
+  [[ -f "$TMP/SHA256SUMS" ]] || die "В релизе нет SHA256SUMS — обновление отменено"
+  WANT="$(awk -v n="$(basename "$ZIP")" '$2==n || $2=="*"n {print $1}' "$TMP/SHA256SUMS")"
+  GOT="$( (command -v shasum >/dev/null && shasum -a 256 "$ZIP" || sha256sum "$ZIP") | awk '{print $1}')"
+  [[ -n "$WANT" && "$WANT" == "$GOT" ]] || die "sha256 архива не совпадает с SHA256SUMS — обновление отменено"
+  printf '%s\n' "-----BEGIN PUBLIC KEY-----" "MCowBQYDK2VwAyEAwbfEmzJBhUR+4mXGf+27TS/gEq9B1ToB70rImmzTft4=" "-----END PUBLIC KEY-----" > "$TMP/pub.pem"
+  if [[ -f "$TMP/SHA256SUMS.sig" ]] && openssl pkeyutl -verify -pubin -inkey "$TMP/pub.pem" -rawin -in "$TMP/SHA256SUMS" -sigfile "$TMP/SHA256SUMS.sig" >/dev/null 2>&1; then
+    say "Подпись релиза (ed25519) и sha256 проверены"
+  elif [[ -f "$TMP/SHA256SUMS.sig" ]] && openssl pkeyutl -verify -pubin -inkey "$TMP/pub.pem" -rawin -in "$TMP/SHA256SUMS" -sigfile "$TMP/SHA256SUMS.sig" 2>&1 | grep -qi "signature verification failure\|verify failure"; then
+    die "Подпись SHA256SUMS неверна — обновление отменено"
+  elif [[ "${EDSIP_REQUIRE_SIGNATURE:-0}" == "1" ]]; then
+    die "Не удалось проверить подпись (нет SHA256SUMS.sig или openssl без ed25519); EDSIP_REQUIRE_SIGNATURE=1"
+  else
+    say "ВНИМАНИЕ: sha256 проверен, подпись проверить нечем (openssl без ed25519, напр. LibreSSL macOS). brew install openssl — для полной проверки"
+  fi
   mkdir "$TMP/x" && /usr/bin/unzip -q "$ZIP" -d "$TMP/x"
   SRC="$TMP/x"
   # zip с вложенной папкой -> взять папку, где лежит manifest.json

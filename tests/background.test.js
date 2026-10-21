@@ -19,8 +19,8 @@ const chrome = { storage: { local: area(store), session: area(sess) },
       if (m.type === "scroll_step") { pg.height += 500; return cb({ height: pg.height, atBottom: false, block: pg.block || null, query: pg.query }); }
       cb(null); } },
   action: { setBadgeText() {}, setBadgeBackgroundColor() {}, setTitle() {} } };
-const ctx = { chrome, URL, JSON, Date, Promise, console, Math, self: {}, setTimeout: (f) => setTimeout(f, 5), clearTimeout };
-ctx.importScripts = (f) => vm.runInContext(fs.readFileSync(path.join(__dirname, "..", f), "utf8"), ctx);
+const ctx = { chrome, URL, JSON, Date, Promise, console, Math, self: {}, crypto: globalThis.crypto, TextEncoder, setTimeout: (f) => setTimeout(f, 5), clearTimeout };
+ctx.importScripts = (...fs_) => fs_.forEach((f) => vm.runInContext(fs.readFileSync(path.join(__dirname, "..", f), "utf8"), ctx));
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8"), ctx);
 const call = (msg, tab) => new Promise((ok) => listener(msg, { tab: tab == null ? undefined : { id: tab } }, ok));

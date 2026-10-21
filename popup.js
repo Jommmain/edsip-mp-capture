@@ -111,7 +111,7 @@ async function saveViaFs(dirRoot, f, mp, st, now) {
   let dir = dirRoot;
   if (st.perMarketplace) dir = await dir.getDirectoryHandle(mp, { create: true });
   const exists = async (n) => { try { await dir.getFileHandle(n); return true; } catch (e) { return false; } };
-  const name = await SV.freeName(mp, f.query || f.stats.query, now, exists);
+  const name = await SV.freeName(mp, f.query || f.zone || f.stats.query, now, exists);
   const fh = await dir.getFileHandle(name, { create: true });
   const w = await fh.createWritable(); await w.write(toPrettyJson(f)); await w.close();
   return { name, path: `${dirRoot.name}/${st.perMarketplace ? mp + "/" : ""}${name}`, mode: "fs" };
@@ -119,7 +119,7 @@ async function saveViaFs(dirRoot, f, mp, st, now) {
 async function saveViaDownloads(f, mp, st, now, hist) {
   const sub = SV.subPath(st, mp);
   const taken = new Set(hist.map((h) => h.rel));
-  const name = await SV.freeName(mp, f.query || f.stats.query, now, (n) => taken.has((sub ? sub + "/" : "") + n));
+  const name = await SV.freeName(mp, f.query || f.zone || f.stats.query, now, (n) => taken.has((sub ? sub + "/" : "") + n));
   const rel = (sub ? sub + "/" : "") + name;
   const url = URL.createObjectURL(new Blob([toPrettyJson(f)], { type: "application/json" }));
   try {

@@ -20,8 +20,10 @@
 
 <section class="card" id="update">
   <h2>Обновления из GitHub</h2>
-  <p class="hint">Репозиторий <code>Jommmain/edsip-mp-capture</code> публичный — токен <b>не нужен</b>. Необязательно: токен GitHub
-    только на чтение, если упираетесь в лимит API без авторизации (60 запросов/час). Хранится только в этом браузере (<code>chrome.storage.local</code>).</p>
+  <p class="hint">Репозиторий публичный — по умолчанию <b>токен не используется</b>. Добавляйте его только если упираетесь
+    в лимит GitHub API без авторизации (60 запросов/час). Только <b>fine-grained</b> токен, доступ «Public repositories (read-only)»
+    или только этот репо с Contents: Read-only, без других прав, с коротким сроком. Хранится открытым текстом в <code>chrome.storage.local</code>
+    этого профиля — не используйте токен с правами на запись. Обновление ставится, только если подпись релиза (ed25519) и sha256 сошлись.</p>
   <div class="row"><input id="token" type="password" placeholder="необязательно: github_pat_…" autocomplete="off" spellcheck="false">
     <button id="save-token">Сохранить токен</button><button id="del-token" class="ghost">Удалить</button></div>
   <label class="opt"><input type="checkbox" id="autoCheck"> Проверять раз в день (значок «↑» при новой версии)</label>

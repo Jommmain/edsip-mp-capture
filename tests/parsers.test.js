@@ -25,26 +25,24 @@ assert.strictEqual(fileName(null, "wb", new Date(2026, 0, 2, 3, 4, 5), 3), "wb_n
 const pj = JSON.parse(toPrettyJson({ schema: "edsip-mp-capture/1", marketplace: "ozon", stats: oz, records: recs.slice(0, 1) }));
 assert.strictEqual(pj.marketplace, "ozon"); assert.ok(pj.records[0].body.widgetStates);
 
-// page_hook: Ozon response captured, inner url cleaned, tracking + tokens dropped.
-const posted = [];
-const ctx = { window: { postMessage: (m) => posted.push(m) }, location: { href: "https://www.ozon.ru/search/", origin: "https://www.ozon.ru" },
-  URL, JSON, Date, XMLHttpRequest: function () {} };
-ctx.XMLHttpRequest.prototype = { open() {}, send() {}, addEventListener() {} };
-let next;
-ctx.window.fetch = async (url) => ({ url, status: 200, redirected: false, clone() { return this; }, text: async () => next });
-vm.createContext(ctx); ctx.fetch = ctx.window.fetch;
-vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "page_hook.js"), "utf8").replace(/window\.fetch/g, "fetch"), ctx);
+// page_hook: Ozon response captured, inner url cleaned, tracking + tokens dropped, non-content widgets dropped.
+const { loadHook } = require("./hook_harness.js");
 (async () => {
-  next = JSON.stringify({ widgetStates: { a: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig" }, trackingPayloads: { x: 1 }, userToken: "t" });
-  await ctx.fetch(ozUrl("/search/?text=корм&page=2&sh=SECRET&tf_state=zzz") + "&__rr=1&abt_att=1");
-  next = "{}"; await ctx.fetch("https://xapi.ozon.ru/dlte/multi");
-  await new Promise((r) => setTimeout(r, 20));
-  assert.strictEqual(posted.length, 1);
-  const r = posted[0].record, u = new URL(r.url);
+  const h = loadHook("https://www.ozon.ru");
+  await h.get(ozUrl("/search/?text=корм&page=2&sh=SECRET&tf_state=zzz") + "&__rr=1&abt_att=1",
+    { widgetStates: { "searchResultsV2-1": JSON.stringify({ items: [{ sku: 1, token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.sig" }] }),
+      "webCurrentSeller-2": JSON.stringify({ name: "ИП Иванов", inn: "123" }) }, trackingPayloads: { x: 1 }, userToken: "t" });
+  await h.get("https://xapi.ozon.ru/dlte/multi", {});
+  assert.strictEqual(h.records.length, 1);
+  assert.strictEqual(h.windowPosts.filter((m) => m.record).length, 0); // records never go through window.postMessage
+  const r = h.records[0], u = new URL(r.url);
   assert.strictEqual(r.marketplace, "ozon"); assert.strictEqual(r.kind, "ozon_page");
   assert.strictEqual(u.searchParams.get("url"), "/search/?text=%D0%BA%D0%BE%D1%80%D0%BC&page=2");
   assert.ok(!r.url.includes("__rr") && !r.url.includes("SECRET"));
   const b = JSON.parse(r.body);
-  assert.deepStrictEqual(Object.keys(b), ["widgetStates"]); assert.strictEqual(b.widgetStates.a, "<redacted>");
+  assert.deepStrictEqual(Object.keys(b), ["widgetStates"]);
+  assert.deepStrictEqual(Object.keys(b.widgetStates), ["searchResultsV2-1"]);
+  assert.deepStrictEqual(JSON.parse(b.widgetStates["searchResultsV2-1"]).items[0], { sku: 1 });
+  h.close();
   console.log("parsers.test.js: OK");
 })().catch((e) => { console.error(e); process.exit(1); });

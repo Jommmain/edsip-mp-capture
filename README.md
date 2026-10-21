@@ -3,13 +3,25 @@
 Пассивно копирует JSON-ответы, которые страница маркетплейса **уже получила** в вашем обычном браузере.
 Своих запросов не делает, cookies и заголовки не читает, токены и трекинг вырезаются (`<redacted>`).
 
-## Что сохраняется
-- **WB** (wildberries.ru/.by): поиск v18 (catalog/filters, page), u-card v4 detail/list, `card.json`, `rich_v1.json`,
-  отзывы (только счётчики), вопросы (только число).
-- **Ozon** (ozon.ru, ozon.by): `/api/entrypoint-api.bx/page/json/v2` и `/api/composer-api.bx/page/json/v2`
-  (выдача поиска/категории и карточка товара). Из ответа остаются только `widgetStates`, `layout`, `nextPage`/`prevPage`,
-  `pageInfo`, `shared`; во вложенном `url=` остаются только `text, page, brand, seller, currency_price, from_global, sorting`.
-  Формат Ozon пока **не проверен на живой HAR** — счётчик «реклама» для Ozon эвристический.
+## Что сохраняется (формат `edsip-mp-capture/2`)
+Конверт файла (один файл = один запрос или одна зона): `schema: "edsip-mp-capture/2"`, `capture_id` (uuid4), `marketplace`,
+`extension_version`, `saved_at`, `run_started_at`/`run_ended_at`, `query`, `zone` (категория/бренд), `tabs`, `format: pretty-1`,
+`context` — `site_host`, `region_hint {dest, curr}`, а также всегда `curr`, `dest`, `spp`, `snapshot_at` (время последнего ответа выдачи)
+и `pages`/`page`; `stats` (справочно); `records[]` — `url` (очищенный), `kind`, `status`, `ts`, `redirected`, `tab`, `query`/`zone`,
+`body` (объект), `body_sha256` (sha256 очищенного body). Пример: `tests/fixtures/sample_v2.json`.
+
+- **WB** (wildberries.ru/.by): поиск v18, **страницы категорий** (`kind: category`) и **зоны брендов** (`kind: brand_zone`),
+  u-card v4 detail/list (`card`), `card.json` (`card_info`), `rich_v1.json` (`card_rich`: наличие, число блоков, URL картинок),
+  отзывы (`feedbacks`: только счётчики `feedback_count, valuation, with_photo, with_text, with_video, distribution`,
+  `reviews_2026`, `with_answer`, `reviews_by_year`, `reviews_loaded`), вопросы (`question_count`).
+- **Ozon** (ozon.ru, ozon.by): `/api/entrypoint-api.bx/page/json/v2`, `/api/composer-api.bx/page/json/v2` — поиск, категории,
+  бренды, карточка. Формат Ozon **не проверен на живой HAR**.
+- **Цены собираются полностью и как есть** (без пересчёта — нормализует бэкенд): `sizes[].price {basic, product, total, wallet,
+  logistics, return, cashback}`, `saleConditions`, продавец `supplier`, `supplierId`, `supplierRating`; в detail — `sizes[].stocks`
+  и `promotions`; валюта/регион/СПП — в `context` и URL.
+- **Только разрешённые поля** (allowlist по типу ответа в `page_hook.js`): всё, чего нет в списке, отбрасывается
+  (в т. ч. неизвестные поля, данные пользователя, трекинг; `logs` рекламы → `"<opaque>"`). Поверх — удаление ключей-секретов и JWT.
+  Тексты отзывов, имена авторов, фото отзывов и **файлы изображений не сохраняются** — только URL и метаданные.
 
 ## Сохранение файлов (⚙ Настройки)
 - **В «Загрузки» → подпапка** (по умолчанию `EDSIP/inbox`, т. е. `~/Downloads/EDSIP/inbox/`). Chrome разрешает расширениям
@@ -23,14 +35,17 @@
 - В окне — «Последние сохранения»: имя, время, путь (последние 30).
 
 ## Обновление из окна расширения
-1. Репозиторий публичный — токен не нужен. Необязательно: ⚙ Настройки → токен GitHub (только чтение) — лишь чтобы
-   не упираться в лимит GitHub API без авторизации (60 запросов/час с одного IP). Хранится в `chrome.storage.local`.
+1. Репозиторий публичный — **по умолчанию токен не используется**. Только если упираетесь в лимит GitHub API без авторизации
+   (60 запросов/час с одного IP): ⚙ Настройки → **fine-grained** токен **только на чтение** (Public repositories read-only или
+   только этот репо с Contents: Read-only, короткий срок). Хранится открытым текстом в `chrome.storage.local` — не давайте прав на запись.
 2. «Указать папку расширения…» → `~/EDSIP/edsip-mp-capture` (проверяется `manifest.json`, имя «EDSIP MP Capture»).
 3. «Проверить обновления» (в окне или настройках) → «Обновить до vX»: zip скачивается и распаковывается в браузере,
-   текущие файлы копируются в `.prev/`, устаревшие удаляются, затем расширение перезапускается само.
+   **сначала проверяется подпись**: `SHA256SUMS` релиза подписан ed25519 (публичный ключ зашит в `lib/updater.js`,
+   закрытый ключ хранится вне репозитория), и sha256 zip должен совпасть. Без подписи/при несовпадении обновление отменяется.
+   В папку пишутся только файлы расширения из белого списка путей; текущие файлы копируются в `.prev/`, затем перезапуск.
 4. Флажок «Проверять раз в день»: при новой версии на значке «↑» (если нет других счётчиков) и подсказка у значка.
 
-**Ограничения:** нужен Chrome 103+ (`DecompressionStream`), zip без ZIP64/шифрования; папку надо указать один раз,
+**Ограничения:** нужен Chrome 137+ (Ed25519 в WebCrypto; иначе — обновление через Терминал), zip без ZIP64/шифрования; папку надо указать один раз,
 но Chrome может снова спросить доступ после перезапуска; git-клон из окна не обновляется (`git pull`); если запись
 прервалась — восстановить из `.prev/` или выполнить `bash ~/EDSIP/update-extension.sh`. Новые разрешения в manifest
 (если появятся) Chrome может потребовать подтвердить на chrome://extensions. Без указанной папки — команда для Терминала.
@@ -108,7 +123,25 @@ bash ~/EDSIP/update-extension.sh
 ## Разработка
 - Файлы расширения лежат в корне репозитория; тесты: `for t in tests/*.test.js; do node $t; done`.
 - Сборка zip (файлы в корне архива): `bash build.sh` → `dist/edsip-mp-capture-<версия>.zip`.
-- Релиз: поднять `version` в `manifest.json`, `bash build.sh`, `gh release create v<версия> dist/edsip-mp-capture-<версия>.zip`.
+- Релиз: поднять `version` в `manifest.json`, `bash build.sh` (создаёт `dist/SHA256SUMS` и подписывает его ключом
+  `EDSIP_SIGNING_KEY`, по умолчанию `~/.config/edsip-signing/release-ed25519.pem`, **не в репо**), затем
+  `gh release create v<версия> dist/edsip-mp-capture-<версия>.zip dist/SHA256SUMS dist/SHA256SUMS.sig`.
+- `update-extension.sh` проверяет sha256 по `SHA256SUMS` всегда и подпись — если `openssl` умеет ed25519 (LibreSSL в macOS может
+  не уметь: `brew install openssl`; `EDSIP_REQUIRE_SIGNATURE=1` — отказ без проверки подписи).
+- Этап 2 (POST в EDSIP) — заглушка `lib/transport_post.js`, **выключена** (`ENABLED=false`), нигде не подключена, домена EDSIP
+  в правах нет; заголовок `X-EDSIP-Extension-Token`. Этап 1 — файл в папку для загрузки в ваш пайплайн.
+
+## Права расширения (минимум)
+- `storage` — записи и настройки; `unlimitedStorage` — ответы выдачи крупные (до ~0,7 МБ), 3000 записей не влезают в 10 МБ квоты;
+- `downloads` — сохранение файла в «Загрузки» (способ по умолчанию); `alarms` — шаги автопрокрутки и ежедневная проверка обновлений;
+- host-доступ к wildberries/ozon — перехват ответов, адреса вкладок для «во всех вкладках» (вместо права `tabs`);
+  к `api.github.com`/`github.com`/хостам файлов релизов — только для обновления. Права `tabs` и `activeTab` убраны.
+
+## Изменения 0.6.0
+Формат `edsip-mp-capture/2` (capture_id, context с curr/dest/spp/snapshot_at, body_sha256), категории и зоны брендов,
+`reviews_2026`/`with_answer`, цены и продавец без пересчёта, allowlist полей, приватный канал hook↔content (MessageChannel + nonce),
+подпись релизов ed25519 + sha256, белый список файлов при самообновлении, права сокращены (`tabs`, `activeTab` убраны),
+токен GitHub по умолчанию не используется, заглушка POST этапа 2 (выключена).
 
 ## Изменения 0.5.1
 Репозиторий публичный: обновление без токена (токен — только от лимитов API), правки README, `.gitignore`.

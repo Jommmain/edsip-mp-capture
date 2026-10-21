@@ -3,6 +3,29 @@ const assert = require("assert"), path = require("path"), fs = require("fs");
 const S = require(path.join(__dirname, "..", "lib", "saving.js"));
 const { unzip } = require(path.join(__dirname, "..", "lib", "unzip.js"));
 const U = require(path.join(__dirname, "..", "lib", "updater.js"));
+const zlib = require("zlib");
+// Build a small zip in memory (no binary fixture in git): manifest (stored), icon + popup.js (deflate).
+function makeZip(entries) {
+  const crcT = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc = (b) => { let c = 0xffffffff; for (const x of b) c = crcT[(c ^ x) & 0xff] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
+  const locals = [], cents = []; let off = 0;
+  for (const [name, data, deflate] of entries) {
+    const raw = Buffer.from(data), comp = deflate ? zlib.deflateRawSync(raw) : raw, nm = Buffer.from(name);
+    const h = Buffer.alloc(30); h.writeUInt32LE(0x04034b50, 0); h.writeUInt16LE(20, 4); h.writeUInt16LE(deflate ? 8 : 0, 8);
+    h.writeUInt32LE(crc(raw), 14); h.writeUInt32LE(comp.length, 18); h.writeUInt32LE(raw.length, 22); h.writeUInt16LE(nm.length, 26);
+    const c = Buffer.alloc(46); c.writeUInt32LE(0x02014b50, 0); c.writeUInt16LE(20, 4); c.writeUInt16LE(20, 6); c.writeUInt16LE(deflate ? 8 : 0, 10);
+    c.writeUInt32LE(crc(raw), 16); c.writeUInt32LE(comp.length, 20); c.writeUInt32LE(raw.length, 24); c.writeUInt16LE(nm.length, 28); c.writeUInt32LE(off, 42);
+    locals.push(h, nm, comp); cents.push(c, nm); off += 30 + nm.length + comp.length;
+  }
+  const cd = Buffer.concat(cents), e = Buffer.alloc(22);
+  e.writeUInt32LE(0x06054b50, 0); e.writeUInt16LE(entries.length, 8); e.writeUInt16LE(entries.length, 10); e.writeUInt32LE(cd.length, 12); e.writeUInt32LE(off, 16);
+  return Buffer.concat([...locals, cd, e]);
+}
+const FIXTURE_ZIP = makeZip([
+  ["manifest.json", JSON.stringify({ manifest_version: 3, name: "EDSIP MP Capture", version: "9.9.9" }), false],
+  ["icons/icon16.png", Buffer.concat([Buffer.from("\x89PNG", "latin1"), Buffer.from(Array.from({ length: 256 * 20 }, (_, i) => i % 256))]), true],
+  ["popup.js", "console.log('новый');\n".repeat(50), true],
+]);
 
 // ---- in-memory File System Access API ----
 class FFile { constructor(d) { this.d = d; } async text() { return Buffer.from(this.d).toString("utf8"); } async arrayBuffer() { return this.d; } }
@@ -30,7 +53,7 @@ const txt = (d, n) => Buffer.from(d.files.get(n)).toString("utf8");
   assert.strictEqual(await S.freeName("wb", "a", d, (n) => taken.has(n)), "wb_a_2026-10-20_13-07-09_run3.json");
 
   // unzip (stored + deflate)
-  const files = await unzip(fs.readFileSync(path.join(__dirname, "fixture-update.zip")));
+  const files = await unzip(FIXTURE_ZIP);
   assert.deepStrictEqual(Object.keys(files).sort(), ["icons/icon16.png", "manifest.json", "popup.js"]);
   assert.ok(Buffer.from(files["popup.js"]).toString().startsWith("console.log('новый');"));
   assert.strictEqual(files["icons/icon16.png"].length, 4 + 256 * 20);

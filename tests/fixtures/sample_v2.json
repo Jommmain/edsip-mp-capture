@@ -1,0 +1,128 @@
+{
+ "schema": "edsip-mp-capture/2",
+ "capture_id": "3f1c2a8e-4b7d-4c1e-9a2b-5d6e7f8a9b0c",
+ "marketplace": "wb",
+ "extension_version": "0.6.0",
+ "saved_at": "2026-10-20T06:38:10.161Z",
+ "run_started_at": "2026-10-20T06:35:00.323Z",
+ "run_ended_at": "2026-10-20T06:36:10.000Z",
+ "query": "корм",
+ "zone": null,
+ "tabs": [
+  1
+ ],
+ "context": {
+  "site_host": "www.wildberries.by",
+  "region_hint": {
+   "dest": "-59208",
+   "curr": "byn"
+  },
+  "curr": "byn",
+  "dest": "-59208",
+  "spp": "30",
+  "snapshot_at": "2026-10-20T06:35:00.323Z",
+  "query": "корм",
+  "zone": null,
+  "pages": [
+   1
+  ],
+  "page": 1
+ },
+ "stats": {
+  "total": 2,
+  "pages": 1,
+  "ads": 1,
+  "products": 1,
+  "query": "корм",
+  "dest": "-59208",
+  "curr": "byn",
+  "host": "www.wildberries.by",
+  "cards": 0,
+  "blocked": 0,
+  "redirects": 0
+ },
+ "records": [
+  {
+   "url": "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common/v18/search?appType=1&curr=byn&dest=-59208&lang=ru&locale=by&query=%D0%BA%D0%BE%D1%80%D0%BC&resultset=catalog&sort=popular&spp=30",
+   "marketplace": "wb",
+   "kind": "search",
+   "status": 200,
+   "redirected": false,
+   "ts": "2026-10-20T06:35:00.323Z",
+   "body": {
+    "metadata": {
+     "normquery": "корм",
+     "catalog_type": "preset"
+    },
+    "total": 7521,
+    "products": [
+     {
+      "id": 380913287,
+      "brand": "Royal canin",
+      "brandId": 41830,
+      "name": "Oral Care",
+      "supplier": "Ezoo",
+      "supplierId": 1304374,
+      "supplierRating": 4.9,
+      "promotions": [
+       123
+      ],
+      "logs": "<opaque>",
+      "viewFlags": 64,
+      "totalQuantity": 35,
+      "sizes": [
+       {
+        "price": {
+         "basic": 2610,
+         "product": 2134,
+         "wallet": 0,
+         "logistics": 0,
+         "return": 0,
+         "cashback": 0
+        },
+        "saleConditions": 402653184,
+        "stocks": [
+         {
+          "wh": 1,
+          "qty": 3
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   "tab": 1,
+   "query": "корм",
+   "body_sha256": "8b7653806a1593d3982e49580747f8846c2955ca85598f439c7e360603dabf10"
+  },
+  {
+   "url": "https://feedback-view-02.wb.ru/feedbacks/v2/222478386",
+   "marketplace": "wb",
+   "kind": "feedbacks",
+   "status": 200,
+   "redirected": false,
+   "ts": "2026-10-20T06:36:10.000Z",
+   "body": {
+    "feedback_count": 4,
+    "valuation": "4.9",
+    "with_photo": 1,
+    "with_text": null,
+    "with_video": null,
+    "distribution": null,
+    "reviews_loaded": 4,
+    "reviews_2026": 2,
+    "with_answer": 1,
+    "reviews_by_year": {
+     "2024": 1,
+     "2025": 1,
+     "2026": 2
+    }
+   },
+   "tab": 1,
+   "query": "корм",
+   "body_sha256": "7ac5059c1d2327deef9b95a8a5a9bf5a2eb3882042fec509306982a56b4c7071"
+  }
+ ],
+ "format": "pretty-1"
+}

@@ -87,6 +87,10 @@ $("apply").onclick = async () => {
   try {
     log(`Скачиваю ${latest.asset.name}…`);
     const zip = await U.downloadAsset(latest.asset, ghToken);
+    const sums = latest.sums ? await U.downloadAsset(latest.sums, ghToken) : null;
+    const sig = latest.sig ? await U.downloadAsset(latest.sig, ghToken) : null;
+    const v = await U.verifyRelease(zip, latest.asset.name, sums, sig);
+    log(`Подпись и sha256 проверены (${v.sha256.slice(0, 12)}…).`, "ok");
     const files = await Z.unzip(zip);
     log(`Файлов в архиве: ${Object.keys(files).length}. Резервная копия → .prev/`);
     const r = await U.applyUpdate(dir, files);

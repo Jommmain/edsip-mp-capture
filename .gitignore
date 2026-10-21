@@ -5,3 +5,6 @@ dist/
 node_modules/
 *.log
 .env
+*.pem
+*.key
+signing/

@@ -1,10 +1,29 @@
 // Isolated world: relay records from page_hook.js to the service worker; perform ONE scroll step on request.
 // No DOM scraping of data, no own requests: scrolling only moves the viewport, the site loads its own data.
 // Pacing lives in background.js (worker timers are not throttled in background tabs).
+// Private channel with page_hook.js: per-document random nonce + MessageChannel (page scripts never see records).
+// window messages are accepted only as a "hello" from this window/origin and only to (re)send the single init.
+const NONCE = crypto.getRandomValues(new Uint32Array(4)).join("-");
+const channel = new MessageChannel();
+let initSent = false;
+function sendInit() {
+  if (initSent) return;
+  initSent = true;
+  window.postMessage({ __edsip_init: 1, nonce: NONCE }, location.origin, [channel.port2]);
+}
+channel.port1.onmessage = (ev) => {
+  const d = ev.data;
+  if (!d || d.nonce !== NONCE || !d.record || typeof d.record.url !== "string") return;
+  const r = d.record;
+  const rec = { url: r.url, marketplace: r.marketplace, kind: r.kind, status: r.status | 0, redirected: !!r.redirected,
+    ts: String(r.ts || ""), body: typeof r.body === "string" ? r.body : null, page_host: location.host };
+  try { chrome.runtime.sendMessage({ type: "record", record: rec }); } catch (e) { /* extension reloaded */ }
+};
 window.addEventListener("message", (ev) => {
-  if (ev.source !== window || !ev.data || ev.data.__edsip !== 1 || !ev.data.record) return;
-  try { chrome.runtime.sendMessage({ type: "record", record: ev.data.record }); } catch (e) { /* extension reloaded */ }
+  if (ev.source !== window || ev.origin !== location.origin || !ev.data || ev.data.__edsip_hello !== 1) return;
+  sendInit();
 });
+sendInit();
 
 const MP = /ozon\./.test(location.host) ? "ozon" : "wb";
 const rnd = (a, b) => a + Math.random() * (b - a);
