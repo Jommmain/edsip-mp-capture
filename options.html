@@ -18,6 +18,20 @@
   <button class="primary" id="save-settings">Сохранить настройки</button> <span id="save-msg" class="ok"></span>
 </section>
 
+<section class="card" id="api">
+  <h2>Автовыгрузка в EDSIP</h2>
+  <div class="row"><input id="api-url" type="text" placeholder="http://127.0.0.1:8080" spellcheck="false" style="flex:1">
+    <button class="primary" id="api-save">Сохранить</button><span id="api-msg" class="ok"></span></div>
+  <div class="row"><input id="api-token" type="password" placeholder="токен расширения (X-EDSIP-Extension-Token)" autocomplete="off" spellcheck="false" style="flex:1">
+    <button id="api-token-save">Сохранить токен</button><button id="api-token-del" class="ghost">Удалить</button></div>
+  <label class="opt"><input type="checkbox" id="api-auto" checked> Отправлять захваченное сразу в API (файл в «Загрузках» остаётся фолбэком)</label>
+  <h3>«Собрать витрину» — список URL</h3>
+  <p class="hint">По одному в строке; «#» — комментарий. Расширение обойдёт ссылки по очереди (вкладки открываются фоном), соберёт JSON и отправит в API.</p>
+  <textarea id="collect-urls" rows="6" spellcheck="false" placeholder="https://www.wildberries.by/catalog/0/search.aspx?search=корм royal canin"></textarea>
+  <div class="row small">Пауза на вкладке <input id="collect-dwell" type="number" min="5" max="120" step="5" value="20"> сек
+    <span id="collect-cnt" class="muted"></span></div>
+</section>
+
 <section class="card" id="update">
   <h2>Обновления из GitHub</h2>
   <p class="hint">Репозиторий публичный — по умолчанию <b>токен не используется</b>. Добавляйте его только если упираетесь
@@ -35,6 +49,6 @@
   <p class="hint">Если папка не указана: в Терминале <code>bash ~/EDSIP/update-extension.sh</code>, затем ⟳ в окне расширения.
     Предыдущая версия сохраняется в подпапке <code>.prev/</code>.</p>
 </section>
-<script src="lib/saving.js"></script><script src="lib/handles.js"></script><script src="lib/unzip.js"></script><script src="lib/updater.js"></script>
+<script src="lib/saving.js"></script><script src="lib/collect.js"></script><script src="lib/handles.js"></script><script src="lib/unzip.js"></script><script src="lib/updater.js"></script>
 <script src="options.js"></script>
 </body></html>

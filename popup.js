@@ -91,6 +91,13 @@ async function refresh() {
   else { pill.className = "pill on"; pill.textContent = `Захват ${MPN[tabMp]}`; }
 }
 
+const TRP = typeof self !== "undefined" ? self.EdsipTransportPost : null;
+const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true };
+const getApi = async () => (hasChrome ? { ...API_DEFAULTS, ...((await chrome.storage.local.get("apiSettings")).apiSettings || {}) } : API_DEFAULTS);
+async function uploadEnvelope(prettyText, cfg) {
+  if (!cfg.autoUpload || !cfg.url || !cfg.token) return { ok: false, reason: "автовыгрузка выключена" };
+  return TRP.postCapture(prettyText, { endpoint: cfg.url, token: cfg.token });
+}
 const SV = typeof self !== "undefined" ? self.EdsipSaving : null;
 const HS = typeof self !== "undefined" ? self.EdsipHandles : null;
 async function saveSettings() { return { ...SV.DEFAULTS, ...((await chrome.storage.local.get("saveSettings")).saveSettings || {}) }; }
@@ -142,22 +149,28 @@ async function save(mp) {
     if (dir && (await HS.permission(dir, true).catch(() => "denied")) !== "granted") { dir = null; note = " (нет доступа к папке — сохранено в «Загрузки»)"; }
     if (!dir && !note) note = " (папка не выбрана — сохранено в «Загрузки»)";
   }
+  const cfg = await getApi();
   const done = [];
   for (const f of files) {
     const now = new Date();
     f.saved_at = now.toISOString();
+    const pretty = toPrettyJson(f);
+    const up = await uploadEnvelope(pretty, cfg);
     try {
       const r = dir ? await saveViaFs(dir, f, mp, st, now) : await saveViaDownloads(f, mp, st, now, [...hist, ...done]);
-      done.push({ ...r, mp, query: f.query, records: f.records.length, ts: now.toISOString() });
+      done.push({ ...r, mp, query: f.query, records: f.records.length, ts: now.toISOString(),
+        uploaded: up.ok, uploadNote: up.ok ? "" : (up.reason || `HTTP ${up.status}`) });
     } catch (e) { msg(`Ошибка сохранения: ${e.message}`); }
   }
   await pushHistory(done.slice().reverse());
-  if (done.length) msg(`Сохранено: ${done.map((d) => d.name).join(", ")}${note}`);
+  const okUp = done.filter((d) => d.uploaded).length;
+  if (done.length) msg(`Сохранено: ${done.map((d) => d.name).join(", ")}${note}`
+    + (okUp ? ` · отправлено в EDSIP: ${okUp}` : (cfg.autoUpload && done.length ? ` · не отправлено (${(done[0] || {}).uploadNote || "нет настроек"}) — файлы в инбоксе` : "")));
   renderHistory();
 }
 async function renderHistory() {
   const h = (await chrome.storage.local.get("saveHistory")).saveHistory || [];
-  $("hist").innerHTML = h.slice(0, 8).map((x) => `<li title="${esc(x.path)}"><b>${esc(x.name)}</b><span>${new Date(x.ts).toLocaleString("ru-RU")} · ${x.records} зап. · ${esc(x.mode === "fs" ? x.path : "Загрузки: " + x.path)}</span></li>`).join("")
+  $("hist").innerHTML = h.slice(0, 8).map((x) => `<li title="${esc(x.path)}"><b>${esc(x.name)}</b><span>${new Date(x.ts).toLocaleString("ru-RU")} · ${x.records} зап. · ${x.uploaded ? "✓ в EDSIP" : esc(x.mode === "fs" ? x.path : "Загрузки: " + x.path)}</span></li>`).join("")
     || '<li class="muted">Пока ничего не сохранено</li>';
 }
 async function checkUpdates(manual) {
@@ -230,8 +243,29 @@ if (hasChrome && typeof document !== "undefined" && $("card-wb")) {
   $("upd-go").onclick = () => chrome.tabs.create({ url: chrome.runtime.getURL("options.html#update") });
   chrome.storage.local.get("updateInfo").then(({ updateInfo: u }) => { if (u && u.latest) showUpdate(u.newer, u.latest, chrome.runtime.getManifest().version); });
   renderHistory();
+  const updCollect = async () => {
+    const c = await send({ type: "collect_state" });
+    const el = $("collect-status"), run = $("collect-run"), stop = $("collect-stop");
+    if (!c || !c.startedAt) { el.textContent = "список не задан"; return; }
+    if (c.running) {
+      const i = Math.min(c.idx + 1, c.urls);
+      el.textContent = `${c.phase === "save" ? "сохраняю и отправляю" : `вкладка ${i}/${c.urls}, захват ${c.captured || 0}`}`;
+      run.disabled = true; stop.hidden = false;
+    } else {
+      run.disabled = false; stop.hidden = true;
+      if (c.result) el.textContent = `готово: файлов ${c.result.files}, отправлено ${c.result.uploaded}, в инбокс ${c.result.saved}${c.result.errors.length ? ", ошибки: " + c.result.errors.length : ""}`;
+      else el.textContent = c.reason === "blocked" ? "остановлено: блокировка" : (c.reason === "user" ? "остановлено" : "");
+    }
+  };
+  updCollect();
   $("open-perf").onclick = () => chrome.tabs.create({ url: "chrome://settings/performance" });
   $("sc-stopall").onclick = async () => { await send({ type: "scroll_stop_all" }); msg("Все прокрутки остановлены"); refresh(); };
+  $("collect-run").onclick = async () => {
+    const r = await send({ type: "collect_run" });
+    if (!r || !r.ok) { msg(r && r.reason ? `Обход: ${r.reason}` : "Не удалось запустить обход"); return; }
+    msg(`Обход запущен: ${r.total} URL, пауза ${r.dwell} с на вкладку`); refresh();
+  };
+  $("collect-stop").onclick = async () => { await send({ type: "collect_stop" }); msg("Обход остановлен"); refresh(); };
   activeTab().then(refresh);
   setInterval(refresh, 1000);
 }
