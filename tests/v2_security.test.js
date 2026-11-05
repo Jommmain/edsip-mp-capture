@@ -160,9 +160,9 @@ const WB = "https://www.wildberries.by/__internal/u-search/exactmatch/sng/common
   assert.ok(U.ALLOWED_PATH.test("lib/envelope.js") && U.ALLOWED_PATH.test("icons/icon48.png"));
   assert.ok(!U.ALLOWED_PATH.test("evil.sh") && !U.ALLOWED_PATH.test("lib/x/y.js") && !U.ALLOWED_PATH.test("_metadata/x"));
 
-  // --- stage-2 POST stub: off by default; when enabled sends X-EDSIP-Extension-Token, no cookies ---
-  assert.strictEqual(T.ENABLED, false);
-  assert.strictEqual((await T.postCapture(env, { endpoint: "https://edsip.example", token: "t" })).skipped, true);
+  // --- stage-2 POST: on by default (v0.7); sends X-EDSIP-Extension-Token, no cookies; explicit off still skips ---
+  assert.strictEqual(T.ENABLED, true);
+  assert.strictEqual((await T.postCapture(env, { endpoint: "https://edsip.example", token: "t", enabled: false })).skipped, true);
   let req; const ff = async (u, o) => { req = { u, o }; return { ok: true, status: 200, json: async () => ({ accepted: 2 }) }; };
   const r = await T.postCapture(env, { endpoint: "https://edsip.example", token: "tok", fetchFn: ff, enabled: true });
   assert.strictEqual(req.u, "https://edsip.example/api/marketplaces/captures");

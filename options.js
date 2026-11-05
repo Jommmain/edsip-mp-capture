@@ -14,8 +14,22 @@ async function showDirs() {
   $("save-dir").textContent = sd ? `📁 ${sd.name} (${await H.permission(sd, false)})` : "не выбрана";
   $("ext-dir").textContent = ed ? `📁 ${ed.name} (${await H.permission(ed, false)})` : "не указана";
 }
+const DEFAULT_URLS = [
+  "https://www.wildberries.by/catalog/0/search.aspx?search=корм royal canin",
+  "https://www.wildberries.by/catalog/0/search.aspx?search=royal canin",
+  "https://www.wildberries.by/catalog/0/search.aspx?search=eukanuba",
+].join("\n");
+const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true, collectUrls: DEFAULT_URLS, collectDwell: 20 };
+const getApi = async () => ({ ...API_DEFAULTS, ...((await chrome.storage.local.get("apiSettings")).apiSettings || {}) });
 async function init() {
   $("ver").textContent = "версия " + version;
+  const a = await getApi();
+  $("api-url").value = a.url; $("api-auto").checked = a.autoUpload !== false;
+  $("collect-urls").value = a.collectUrls || ""; $("collect-dwell").value = a.collectDwell || 20;
+  $("api-token").placeholder = a.token ? "токен сохранён (••••)" : "токен из .env: EDSIP_EXTENSION_TOKEN";
+  const plan = self.EdsipCollect.parsePlan(a.collectUrls, { dwell: a.collectDwell });
+  $("collect-cnt").textContent = plan.urls.length ? `прогона: ${plan.urls.length} URL` : "список пуст";
+  if (plan.rejected.length) $("collect-cnt").textContent += ` · пропущено: ${plan.rejected.length}`;
   const s = await getSettings();
   document.querySelector(`input[name=mode][value=${s.mode}]`).checked = true;
   $("subfolder").value = s.subfolder; $("perMarketplace").checked = !!s.perMarketplace; $("autoCheck").checked = s.autoCheck !== false;
@@ -24,6 +38,25 @@ async function init() {
   example(); showDirs();
   if (location.hash === "#update") { $("update").scrollIntoView(); check(); }
 }
+$("api-save").onclick = async () => {
+  const a = { ...(await getApi()), url: $("api-url").value.trim() || API_DEFAULTS.url, autoUpload: $("api-auto").checked,
+    collectUrls: $("collect-urls").value, collectDwell: Math.max(5, Math.min(120, parseInt($("collect-dwell").value, 10) || 20)) };
+  await chrome.storage.local.set({ apiSettings: a });
+  const plan = self.EdsipCollect.parsePlan(a.collectUrls, { dwell: a.collectDwell });
+  $("collect-cnt").textContent = plan.urls.length ? `прогона: ${plan.urls.length} URL` : "список пуст";
+  $("api-msg").textContent = "Сохранено";
+  setTimeout(() => { $("api-msg").textContent = ""; }, 2500);
+};
+$("api-token-save").onclick = async () => {
+  const t0 = $("api-token").value.trim();
+  if (!t0) return;
+  await chrome.storage.local.set({ apiSettings: { ...(await getApi()), token: t0 } });
+  $("api-token").value = ""; $("api-token").placeholder = "токен сохранён (••••)";
+};
+$("api-token-del").onclick = async () => {
+  await chrome.storage.local.set({ apiSettings: { ...(await getApi()), token: "" } });
+  $("api-token").placeholder = "токен из .env: EDSIP_EXTENSION_TOKEN";
+};
 $("perMarketplace").onchange = example;
 $("save-settings").onclick = async () => {
   const mode = document.querySelector("input[name=mode]:checked").value;
