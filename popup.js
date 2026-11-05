@@ -92,7 +92,7 @@ async function refresh() {
 }
 
 const TRP = typeof self !== "undefined" ? self.EdsipTransportPost : null;
-const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true };
+const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true, collectUrls: "", collectDwell: 20 };
 const getApi = async () => (hasChrome ? { ...API_DEFAULTS, ...((await chrome.storage.local.get("apiSettings")).apiSettings || {}) } : API_DEFAULTS);
 async function uploadEnvelope(prettyText, cfg) {
   if (!cfg.autoUpload || !cfg.url || !cfg.token) return { ok: false, reason: "автовыгрузка выключена" };

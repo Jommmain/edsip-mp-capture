@@ -14,7 +14,12 @@ async function showDirs() {
   $("save-dir").textContent = sd ? `📁 ${sd.name} (${await H.permission(sd, false)})` : "не выбрана";
   $("ext-dir").textContent = ed ? `📁 ${ed.name} (${await H.permission(ed, false)})` : "не указана";
 }
-const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true, collectUrls: "", collectDwell: 20 };
+const DEFAULT_URLS = [
+  "https://www.wildberries.by/catalog/0/search.aspx?search=корм royal canin",
+  "https://www.wildberries.by/catalog/0/search.aspx?search=royal canin",
+  "https://www.wildberries.by/catalog/0/search.aspx?search=eukanuba",
+].join("\n");
+const API_DEFAULTS = { url: "http://127.0.0.1:8080", token: "", autoUpload: true, collectUrls: DEFAULT_URLS, collectDwell: 20 };
 const getApi = async () => ({ ...API_DEFAULTS, ...((await chrome.storage.local.get("apiSettings")).apiSettings || {}) });
 async function init() {
   $("ver").textContent = "версия " + version;
