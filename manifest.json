@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "EDSIP MP Capture",
-  "version": "0.6.1",
-  "description": "Сохраняет JSON, который страница Wildberries/Ozon уже загрузила (поиск, карточки). Без своих запросов, без cookies/заголовков/токенов.",
+  "version": "0.7.0",
+  "description": "Пассивный захват JSON Wildberries/Ozon: «Собрать витрину» по списку URL, автовыгрузка в локальный EDSIP API (файл в «Загрузках» — фолбэк).",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -69,6 +69,8 @@
     "https://api.github.com/*",
     "https://github.com/*",
     "https://objects.githubusercontent.com/*",
-    "https://release-assets.githubusercontent.com/*"
+    "https://release-assets.githubusercontent.com/*",
+    "http://127.0.0.1/*",
+    "http://localhost/*"
   ]
 }

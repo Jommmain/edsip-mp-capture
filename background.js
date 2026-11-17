@@ -1,7 +1,10 @@
 // Service worker: records in chrome.storage.local; auto-scroll scheduler + anti-block safety.
-importScripts("parsers.js", "lib/updater.js", "lib/envelope.js");
+importScripts("parsers.js", "lib/updater.js", "lib/envelope.js", "lib/transport_post.js", "lib/collect.js", "lib/saving.js");
 const ENV = self.EdsipEnvelope;
 const UPD = self.EdsipUpdater;
+const TR = self.EdsipTransportPost;
+const COL = self.EdsipCollect;
+const SVG = self.EdsipSaving;
 const P = self.EdsipParsers;
 const KEY = "records";
 const MAX_RECORDS = 3000;
@@ -22,16 +25,19 @@ const TAB_URL = { wb: ["https://www.wildberries.ru/*", "https://www.wildberries.
 let jobs = {};      // tabId -> {tabId, mp, query, target, speed, maxStall, steps, products, stall, lastH, running, reason, startedAt, nextAt}
 let alerts = {};    // mp -> {reason, status, url, tabId, ts}
 let settings = { pauseAll: true };
+let collect = null; // "Собрать витрину": {running, urls, idx, phase, tabId, dwell, nextAt, result, lastError}
 const tabQuery = {}; // tabId -> last search query seen on that tab
 const tabZone = {};  // tabId -> last category/brand zone seen on that tab
 const timers = {};
 const ready = (async () => {
-  const d = await chrome.storage.session.get(["jobs", "alerts", "tabQuery"]);
+  const d = await chrome.storage.session.get(["jobs", "alerts", "tabQuery", "collect"]);
   jobs = d.jobs || {}; alerts = d.alerts || {}; Object.assign(tabQuery, d.tabQuery || {});
+  collect = d.collect || null;
+  if (collect && collect.running) scheduleCollect(Math.max(0, (collect.nextAt || 0) - Date.now()));
   settings = { ...settings, ...((await chrome.storage.local.get("settings")).settings || {}) };
   for (const j of Object.values(jobs)) if (j.running) schedule(j, Math.max(0, (j.nextAt || 0) - Date.now()));
 })();
-const persist = () => chrome.storage.session.set({ jobs, alerts, tabQuery });
+const persist = () => chrome.storage.session.set({ jobs, alerts, tabQuery, collect });
 
 // Serialize read-modify-write: parallel "record" messages used to overwrite each other.
 let chain = Promise.resolve();
@@ -152,6 +158,7 @@ chrome.alarms.onAlarm.addListener(async (a) => {
   if (a.name !== "edsip-keepalive") return;
   await ready;
   for (const j of running()) if (!timers[j.tabId] || (j.nextAt || 0) < Date.now() - 2000) schedule(j, 0);
+  if (collect && collect.running && (!timers.collect || (collect.nextAt || 0) < Date.now() - 5000)) collectTick();
 });
 
 // ---- daily update check (token from options; nothing is sent except the GitHub API request) ----
@@ -175,6 +182,104 @@ async function checkUpdate() {
 }
 chrome.alarms.onAlarm.addListener((a) => { if (a.name === "edsip-update-check") checkUpdate(); });
 scheduleUpdateCheck();
+
+// ---- "Собрать витрину": sequential tab walk over the URL list, then save + upload ----
+const apiSettings = async () => (await chrome.storage.local.get("apiSettings")).apiSettings || {};
+function scheduleCollect(ms) {
+  clearTimeout(timers.collect);
+  collect.nextAt = Date.now() + ms;
+  timers.collect = setTimeout(collectTick, ms);
+  persist();
+}
+async function collectCloseTab() {
+  if (collect && collect.tabId != null) {
+    const id = collect.tabId;
+    collect.tabId = null;
+    try { await chrome.tabs.remove(id); } catch (e) { /* already gone */ }
+  }
+}
+async function collectStop(reason) {
+  clearTimeout(timers.collect);
+  await collectCloseTab();
+  if (collect) { collect.running = false; collect.reason = reason; collect.endedAt = Date.now(); }
+  persist();
+  serial(async () => badge(await load()));
+}
+async function collectTick() {
+  if (!collect || !collect.running) return;
+  const step = collect.urls[collect.idx];
+  if (!step) return collectFinish();
+  if (alerts[step.marketplace]) return collectStop("blocked");
+  try {
+    if (collect.phase === "open") {
+      const tab = await chrome.tabs.create({ url: step.url, active: false });
+      collect.tabId = tab.id; collect.phase = "dwell"; collect.openedAt = Date.now(); collect.captured = 0;
+      scheduleCollect(collect.dwell * 1000);
+    } else if (collect.phase === "dwell") {
+      const recs = (await load()).filter((r) => r.tab === collect.tabId);
+      collect.captured = recs.length;
+      await collectCloseTab();
+      collect.phase = "pause";
+      scheduleCollect(rnd(COL.parsePlan("").pause[0], COL.parsePlan("").pause[1]) * 1000);
+    } else { // pause -> next URL
+      collect.idx++; collect.phase = "open";
+      scheduleCollect(400);
+    }
+  } catch (e) {
+    collect.lastError = String((e && e.message) || e);
+    await collectCloseTab();
+    collect.idx++; collect.phase = "open";
+    scheduleCollect(3000);
+  }
+  persist();
+}
+// Group what the walk captured exactly like the popup "export": one envelope per (marketplace, query/zone).
+async function collectFinish() {
+  clearTimeout(timers.collect);
+  collect.phase = "save";
+  persist();
+  const cfg = await apiSettings();
+  const recs = await load();
+  const out = { files: 0, uploaded: 0, saved: 0, errors: [] };
+  const groups = new Map();
+  for (const mp of MPS) {
+    const own = recs.filter((r) => P.marketplaceOf(r) === mp);
+    for (const r of own) {
+      const k = r.query ? "q:" + r.query : (r.zone ? "z:" + r.zone : "");
+      const gk = mp + "|" + k;
+      if (!groups.has(gk)) groups.set(gk, { mp, query: k.startsWith("q:") ? k.slice(2) : null, zone: k.startsWith("z:") ? k.slice(2) : null, rs: [] });
+      groups.get(gk).rs.push(r);
+    }
+  }
+  for (const g of groups.values()) {
+    if (!g.rs.length) continue;
+    out.files++;
+    const env = await ENV.buildEnvelope({ marketplace: g.mp, query: g.query, zone: g.zone, records: g.rs, version: chrome.runtime.getManifest().version });
+    env.saved_at = new Date().toISOString();
+    const pretty = JSON.stringify({ ...env, format: "pretty-1", records: env.records.map((r) => ({ ...r, body: typeof r.body === "string" ? safeParse(r.body) : r.body })) }, null, 1) + "\n";
+    const up = cfg.autoUpload !== false && cfg.url && cfg.token
+      ? await TR.postCapture(pretty, { endpoint: cfg.url, token: cfg.token })
+      : { ok: false, reason: "автовыгрузка выключена или не настроена" };
+    if (up.ok) { out.uploaded++; continue; }
+    // Fallback: the inbox file is picked up by the watcher (or manual admin upload).
+    try {
+      const name = SVG.fileName(g.mp, g.query || g.zone || "", new Date(), 1);
+      const url = URL.createObjectURL(new Blob([pretty], { type: "application/json" }));
+      await chrome.downloads.download({ url, filename: "EDSIP/inbox/" + name, saveAs: false, conflictAction: "uniquify" });
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      out.saved++;
+    } catch (e) {
+      out.errors.push(`${g.mp} ${g.query || g.zone || ""}: ${up.reason || up.status}; файл не сохранён (${e.message})`);
+    }
+  }
+  if (out.files) {
+    await chrome.storage.local.set({ [KEY]: [] }); // collected data left the buffer
+    serial(async () => badge(await load()));
+  }
+  collect.result = out; collect.running = false; collect.reason = "done"; collect.endedAt = Date.now();
+  persist();
+}
+function safeParse(s) { try { return JSON.parse(s); } catch (e) { return s; } }
 
 // ---- messages ----
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
@@ -216,6 +321,18 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       case "tile_running": return reply(await detachMany(running(msg.marketplace).map((j) => j.tabId), msg.screen));
       case "scroll_stop": stopJob(msg.tabId, "user"); return reply({ ok: true });
       case "scroll_stop_all": for (const j of running()) stopJob(j.tabId, "user"); return reply({ ok: true });
+      case "collect_state": return reply(collect ? { ...collect, urls: collect.urls.length } : null);
+      case "collect_stop": if (collect && collect.running) { await collectStop("user"); return reply({ ok: true }); } return reply({ ok: false });
+      case "collect_run": {
+        if (collect && collect.running) return reply({ ok: false, reason: "уже идёт" });
+        const cfg = await apiSettings();
+        const plan = COL.parsePlan(cfg.collectUrls || "", { dwell: cfg.collectDwell });
+        if (!plan.urls.length) return reply({ ok: false, reason: "список URL пуст (настройки → Автовыгрузка)", rejected: plan.rejected.slice(0, 3) });
+        collect = { running: true, urls: plan.urls, idx: 0, phase: "open", tabId: null, dwell: plan.dwell,
+          startedAt: Date.now(), nextAt: 0, lastError: null, reason: null, result: null };
+        collectTick();
+        return reply({ ok: true, total: plan.urls.length, dwell: plan.dwell });
+      }
     }
     serial(async () => {
       const recs = await load();

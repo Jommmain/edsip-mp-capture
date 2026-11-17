@@ -48,6 +48,12 @@
   <div class="small" id="sc-msg">Только прокрутка вкладки — данные грузит сам сайт. Работает и в фоновых вкладках.</div>
 </section>
 
+<section class="card" id="collect">
+  <div class="row"><b>Собрать витрину</b><span class="small muted" id="collect-status"></span></div>
+  <div class="btns"><button class="primary" id="collect-run">▶ Обойти список URL</button><button class="ghost" id="collect-stop" hidden>■ Остановить</button></div>
+  <div class="small" id="collect-note">Список URL — в настройках (⚙). Обход фоновыми вкладками, затем автосохранение и отправка в EDSIP.</div>
+</section>
+
 <details class="card" id="history"><summary><b>Последние сохранения</b></summary><ul id="hist"></ul></details>
 
 <section class="card" id="updates">
@@ -68,6 +74,6 @@
 <div class="btns"><button class="ghost" id="open-opt">⚙ Настройки</button><button class="ghost" id="reload2">⟳ Перезагрузить расширение</button></div>
 <div id="msg"></div>
 <footer>Сохраняет только то, что страница уже загрузила. Ничего не отправляет в сеть. Файл — в папку для загрузки в ваш пайплайн</footer>
-<script src="lib/saving.js"></script><script src="lib/handles.js"></script><script src="lib/updater.js"></script>
+<script src="lib/saving.js"></script><script src="lib/transport_post.js"></script><script src="lib/handles.js"></script><script src="lib/updater.js"></script>
 <script src="popup.js"></script>
 </body></html>
